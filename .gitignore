@@ -1,0 +1,49 @@
+# Virtual environment
+.venv/
+venv/
+ENV/
+
+# Python cache & artifacts
+__pycache__/
+*.py[cod]
+*$py.class
+.pytest_cache/
+artifacts/
+
+# Node & Next.js
+node_modules/
+frontend/.next/
+frontend/out/
+
+# Environment files & secrets
+.env
+.env.local
+.env.*.local
+frontend/.env.local
+secrets/
+*.pem
+
+# Build outputs & IDE
+build/
+dist/
+*.egg-info/
+*.tsbuildinfo
+.idea/
+.vscode/
+.DS_Store
+
+# Local GenLayer governance and implementation working files
+AGENTS.md
+CLAUDE.md
+GEMINI.md
+SPECIFICATION.md
+frontend/AGENTS.md
+frontend/CLAUDE.md
+frontend/README.md
+
+# Unused framework starter assets
+frontend/public/file.svg
+frontend/public/globe.svg
+frontend/public/next.svg
+frontend/public/vercel.svg
+frontend/public/window.svg

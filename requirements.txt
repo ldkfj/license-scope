@@ -1,0 +1,10 @@
+# Canonical versions are locked transitively in uv.lock.
+# Install with: uv sync --locked
+
+cloudpickle==3.1.2
+genlayer-py==0.16.3
+genlayer-test==0.29.2
+genvm-linter==0.11.0
+pytest==9.1.1
+pyright==1.1.411
+ruff==0.16.1

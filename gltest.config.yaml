@@ -1,0 +1,6 @@
+# LicenseScope gltest configuration
+environment: .env
+
+paths:
+  contracts: contracts
+  artifacts: artifacts
