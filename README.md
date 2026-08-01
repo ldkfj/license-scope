@@ -1,0 +1,187 @@
+# LicenseScope
+
+LicenseScope is a GenLayer DApp that records operational-rights attestations for an exact public artifact revision and intended-use profile.
+
+> LicenseScope is a policy attestation tool, not legal advice, an ownership certificate, or a substitute for counsel or a license steward.
+
+## Verified links
+
+Deployment is not configured yet. Studionet contract, Explorer, GitHub, and live application links will be added only after their respective verified release gates.
+
+- Network: GenLayer Studionet
+- Chain ID: `61999`
+- RPC: `https://studio.genlayer.com/api`
+- Explorer: `https://explorer-studio.genlayer.com/`
+- Policy: `LS-V1`
+- Policy manifest hash: `sha256:1105b19ea7786bbd5ace24445845997e914e726cd2f80ddf83d8a6f8f8769532`
+
+## Trust problem
+
+A publisher can expose incomplete or inconsistent license metadata, an artifact user can cite one repository while using another revision, a centralized reviewer can select favorable evidence, and an indexer can lose the connection between artifact, revision, policy, and intended use. LicenseScope binds those facts into one canonical assessment key and makes the Intelligent Contract the sole verdict authority.
+
+## Why GenLayer is essential
+
+A deterministic contract cannot independently fetch bounded public evidence and interpret license terms such as attribution, source-offer, non-commercial, research-only, or redistribution restrictions. LicenseScope uses GenLayer nondeterministic execution to:
+
+1. derive evidence URLs from a canonical GitHub owner, repository, and full commit SHA;
+2. fetch bounded public sources inside the nondeterministic execution;
+3. treat fetched content as untrusted data rather than instructions;
+4. have the validator independently repeat the evidence/evaluation work;
+5. compare consequence-critical normalized fields;
+6. write `ALLOW`, `CONDITIONAL`, `BLOCK`, or `UNRESOLVED` only after consensus.
+
+Consensus disagreement does not fabricate a terminal result; the transaction fails and the assessment remains `PENDING`.
+
+## How it works
+
+### Requester
+
+1. Connect a browser wallet on Studionet.
+2. Select `GITHUB_REPO`, enter owner/repository, a full 40-character commit SHA, and an intended-use profile.
+3. Sign `request_assessment`.
+4. Wait for `FINALIZED`, explicit successful execution, and exact contract readback.
+
+### Resolver
+
+Any account may call `resolve_assessment` for a `PENDING` assessment. The contract derives evidence, executes leader/validator evaluation, enforces deterministic license and policy invariants, and stores the consensus-approved terminal record.
+
+### Retry caller
+
+Any account may call `retry_assessment` only for `UNRESOLVED` records and only within the bounded retry limit. Retry atomically resets evaluation fields to the canonical `PENDING` state before another resolution attempt.
+
+## Architecture
+
+- **Intelligent Contract:** canonical identity, policy manifest, evidence derivation, consensus evaluation, verdict state machine, retry policy, and upgrade authorization.
+- **Frontend:** wallet connection, Studionet chain enforcement, contract reads/writes, strict receipt validation, exact readback, and display. It never computes or substitutes a verdict.
+- **Public evidence:** revision-bound GitHub commit and root files fetched by the contract as untrusted data.
+- **Off-chain authority:** none. There is no backend, database, relayer, or cron service that can advance authoritative state.
+
+## Intelligent Contract
+
+Contract source: `contracts/license_scope.py`
+
+### Public writes
+
+- `upgrade(new_code)` — external registered upgrader only; empty code is rejected.
+- `request_assessment(artifact_kind, namespace, name, revision, use_profile)`
+- `resolve_assessment(assessment_id)`
+- `retry_assessment(assessment_id)`
+
+### Public views
+
+- `get_assessment(assessment_id)`
+- `get_assessment_by_key(canonical_key)`
+- `get_assessment_count()`
+- `get_policy_profile(use_profile)`
+
+### State machine
+
+```text
+request -> PENDING
+PENDING -> ALLOW | CONDITIONAL | BLOCK | UNRESOLVED
+UNRESOLVED -> PENDING (bounded retry)
+```
+
+`ALLOW`, `CONDITIONAL`, and `BLOCK` are terminal. Callers cannot submit a verdict or arbitrary evidence URL. LicenseScope is non-economic: it has no escrow, stake, bond, payout, or custody claim.
+
+### Upgradability
+
+The contract is classified `UPGRADABLE`. Its constructor registers a user-selected external wallet in the GenLayer Root Slot upgrader list. The public upgrade method applies an explicit membership guard and rejects empty bytecode. Native Root Slot locking and code redispatch remain `VERIFY-AT-STUDIO` items for the authorized disposable rehearsal described in `docs/DEPLOYMENT_RECOVERY.md`.
+
+## Transaction lifecycle
+
+Every frontend write follows this sequence:
+
+```text
+browser wallet/provider
+-> selected account propagation
+-> immediate chain-ID 61999 verification
+-> write submission
+-> wait for FINALIZED
+-> full transaction lookup
+-> consensus/execution/leader-receipt success checks
+-> exact contract readback
+-> immutable identity and state-transition validation
+-> success UI
+```
+
+A transaction hash, `ACCEPTED` state, missing execution result, leader error, malformed record, or failed readback never counts as success.
+
+## Run locally
+
+Prerequisites:
+
+- Python `3.12.x`
+- `uv`
+- Node.js compatible with Next.js 16
+- npm
+
+Install the locked Python environment:
+
+```bash
+uv sync --locked
+```
+
+Install the frontend from its lockfile:
+
+```bash
+npm --prefix frontend ci
+```
+
+Keep the contract address empty before deployment:
+
+```text
+NEXT_PUBLIC_CONTRACT_ADDRESS=
+```
+
+Start the frontend:
+
+```bash
+npm --prefix frontend run dev
+```
+
+With no verified address, the UI displays `Deployment not configured` and disables contract actions.
+
+## Tests and verification
+
+```bash
+env -u PYTHONPATH uv pip check
+env -u PYTHONPATH uv run genvm-lint check contracts/license_scope.py
+env -u PYTHONPATH uv run pytest tests/direct -v
+env -u PYTHONPATH uv run pytest tests/integration -v
+env -u PYTHONPATH uv run pytest tests/integration -v --network studionet --chain-type studionet --rpc-url https://studio.genlayer.com/api
+npm --prefix frontend test
+npm --prefix frontend run typecheck
+npm --prefix frontend run lint
+npm --prefix frontend run build
+```
+
+Current exact results and evidence scope are recorded in `docs/VERIFICATION.md`. Skipped Studionet tests are not live evidence.
+
+## Deployment
+
+Release deployment is Studionet-only. Deployment remains blocked until the user selects the public deployment-wallet and external-upgrader addresses, Codex verifies the intended identity/target, PRE_DEPLOY receives both required approvals, and the user separately confirms the deployment transaction.
+
+The secret-free draft manifest, storage compatibility policy, reset recovery procedures, and live rehearsal requirements are in `docs/DEPLOYMENT_RECOVERY.md`.
+
+## Security and trust boundaries
+
+- Root license files take precedence over README fallback evidence.
+- README dependency mentions cannot relabel an authoritative repository license.
+- Source text, prompts, role overrides, and self-declared verdicts are untrusted data.
+- Deterministically recognized licenses outrank evaluator-provided labels.
+- Custom or unknown terms fail closed to `UNRESOLVED`.
+- Evidence references are contract-derived and revision-bound.
+- Strict bounded parsing rejects malformed enum, boolean, tuple, receipt, and JSON-array shapes.
+- Retry clears stale terminal fields and increments the retry count exactly once.
+- The upgrader can replace code but cannot directly overwrite a verdict through a business method.
+
+## Known limitations
+
+- V1 supports only public GitHub repositories at a full commit SHA.
+- `HF_MODEL` and `HF_DATASET` are explicitly locked as `UNSUPPORTED_V1`.
+- Private/authenticated repositories and caller-supplied evidence URLs are unsupported.
+- LicenseScope provides an operational policy decision, not legal advice.
+- No Studionet deployment or live lifecycle evidence exists yet.
+- Root Slot lock enforcement, deployed-code readback, and upgrade redispatch require authorized Studionet verification.
+- Availability and semantic quality still depend on public evidence and validator consensus; insufficient or custom evidence resolves safely to `UNRESOLVED`.
