@@ -149,6 +149,8 @@ npm audit: 0 vulnerabilities
 
 The frontend tests cover both legacy camel-case and sanitized current-Studionet response shapes; numeric/name and camel/snake contradiction rejection; optional-but-noncontradictory `consensus_data.final`; mandatory non-empty leader receipts; leader execution, decoded result, and GenVM error rejection; replay of the retained finalized-with-error transaction; explicit rejection of non-final `ACCEPTED`; strict record parsing; immutable identity readback; and terminal-state invariants. A read-only live replay of the retained hash reached the intended validator branch and was rejected specifically with `Leader execution result rejected: ERROR.`
 
+A detached clean worktree at package commit `7010534d8e4badadd90853ef07bc67be449c255c` reproduced both stacks from lockfiles: a fresh Python environment installed and checked all 57 locked packages, passed GenVM lint/validation and 49 direct tests; `npm ci` installed 378 frontend packages with zero vulnerabilities, followed by 23 frontend tests, typecheck, lint, production build, and audit all passing.
+
 The build detects a protected local `frontend/.env.local`; its content is not part of this evidence and must never be committed or disclosed.
 
 ## PRE_DEPLOY correction closure
