@@ -155,7 +155,7 @@ The authorized rehearsal used separate disposable Studionet contract `0xF1FF7a9F
 | V2 redispatch and state preservation | Read-only live calls | `get_rehearsal_version() == "LICENSE_SCOPE_REHEARSAL_V2"`; assessment count remained `1`; every field of V1 record `#1` remained unchanged |
 | Reject unauthorized caller after upgrade | `0x39e6dfeca276469f3373c10078c9fc821740c87c9d105fd0f6e195f60411e904` | Same unauthorized wallet; `FINALIZED`, rollback `ERR_NOT_UPGRADER`; V2 hash, marker, count, and record remained unchanged |
 
-All finalized transactions above recorded `MAJORITY_AGREE` and five `AGREE` votes. Expected rejection transactions finalized with consensus but had leader execution `ERROR` and rollback, so they are failure/no-mutation evidence rather than successful writes. The rehearsal proves the explicit Root-upgrader membership guard and persistence of the Root upgrader list across code replacement. It does not independently bypass that guard to isolate native locked-slot enforcement.
+All six transactions above reached `FINALIZED` with `MAJORITY_AGREE`. V1 deployment `0xda26ea0dc925a6b7c740ae2c503b5b6a869ad285ad2840a095e624b79225273a` recorded four `AGREE` votes and one quorum-cancelled `IDLE`; each of the remaining five transactions recorded five `AGREE` votes. Expected rejection transactions finalized with consensus but had leader execution `ERROR` and rollback, so they are failure/no-mutation evidence rather than successful writes. The rehearsal proves the explicit Root-upgrader membership guard and persistence of the Root upgrader list across code replacement. It does not independently bypass that guard to isolate native locked-slot enforcement.
 
 ## Recovery runbook
 
