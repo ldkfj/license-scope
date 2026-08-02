@@ -359,7 +359,7 @@ def test_exact_github_identity_regression(monkeypatch):
         "GITHUB_REPO", "expected", "repo", VALID_SHA, "COMMERCIAL_INFERENCE"
     )
 
-    def mock_web_get(url):
+    def mock_web_get(url, method="GET"):
         if "commits" in url:
             return MockWebResponse(200, json.dumps({
                 "sha": VALID_SHA,
@@ -377,7 +377,7 @@ def test_exact_github_identity_regression(monkeypatch):
             "obligations": [],
         }
 
-    monkeypatch.setattr(gl.nondet.web, "get", mock_web_get)
+    monkeypatch.setattr(gl.nondet.web, "request", mock_web_get)
     monkeypatch.setattr(gl.nondet, "exec_prompt", mock_exec_prompt)
 
     set_sender(RESOLVER)
@@ -398,7 +398,7 @@ def test_prompt_injection_without_mit_license_phrase(monkeypatch):
         "GITHUB_REPO", "test-org", "test-repo", VALID_SHA, "COMMERCIAL_INFERENCE"
     )
 
-    def mock_web_get(url):
+    def mock_web_get(url, method="GET"):
         if "commits" in url:
             return MockWebResponse(200, json.dumps({
                 "sha": VALID_SHA,
@@ -416,7 +416,7 @@ def test_prompt_injection_without_mit_license_phrase(monkeypatch):
             "obligations": [],
         }
 
-    monkeypatch.setattr(gl.nondet.web, "get", mock_web_get)
+    monkeypatch.setattr(gl.nondet.web, "request", mock_web_get)
     monkeypatch.setattr(gl.nondet, "exec_prompt", mock_exec_prompt)
 
     set_sender(RESOLVER)
@@ -434,7 +434,7 @@ def _resolve_with_sources(monkeypatch, repo_name, primary_license, readme, llm_r
         "GITHUB_REPO", "test-org", repo_name, VALID_SHA, "COMMERCIAL_INFERENCE"
     )
 
-    def mock_web_get(url):
+    def mock_web_get(url, method="GET"):
         if "/commits/" in url:
             return MockWebResponse(200, json.dumps({
                 "sha": VALID_SHA,
@@ -446,7 +446,7 @@ def _resolve_with_sources(monkeypatch, repo_name, primary_license, readme, llm_r
             return MockWebResponse(200, readme)
         return MockWebResponse(404, b"Not Found")
 
-    monkeypatch.setattr(gl.nondet.web, "get", mock_web_get)
+    monkeypatch.setattr(gl.nondet.web, "request", mock_web_get)
     monkeypatch.setattr(gl.nondet, "exec_prompt", lambda *args, **kwargs: llm_result)
     set_sender(RESOLVER)
     contract.resolve_assessment(aid)
@@ -784,7 +784,7 @@ def test_no_evaluator_rerun_outside_consensus(monkeypatch):
     web_count = [0]
     prompt_count = [0]
 
-    def mock_web_get(url):
+    def mock_web_get(url, method="GET"):
         web_count[0] += 1
         if "commits" in url:
             return MockWebResponse(200, json.dumps({
@@ -802,7 +802,7 @@ def test_no_evaluator_rerun_outside_consensus(monkeypatch):
             "obligations": [],
         }
 
-    monkeypatch.setattr(gl.nondet.web, "get", mock_web_get)
+    monkeypatch.setattr(gl.nondet.web, "request", mock_web_get)
     monkeypatch.setattr(gl.nondet, "exec_prompt", mock_exec_prompt)
 
     set_sender(RESOLVER)
@@ -824,7 +824,7 @@ def test_consensus_callbacks_run_one_leader_and_one_validator_without_third_eval
     web_count = [0]
     prompt_count = [0]
 
-    def mock_web_get(url):
+    def mock_web_get(url, method="GET"):
         web_count[0] += 1
         if "commits" in url:
             return MockWebResponse(200, json.dumps({
@@ -847,7 +847,7 @@ def test_consensus_callbacks_run_one_leader_and_one_validator_without_third_eval
         assert validator_fn(gl.vm.Return(leader)) is True
         return leader
 
-    monkeypatch.setattr(gl.nondet.web, "get", mock_web_get)
+    monkeypatch.setattr(gl.nondet.web, "request", mock_web_get)
     monkeypatch.setattr(gl.nondet, "exec_prompt", mock_exec_prompt)
     monkeypatch.setattr(gl.vm, "run_nondet_unsafe", run_both_callbacks_once)
 
@@ -879,7 +879,7 @@ def test_requester_resolver_different_accounts(monkeypatch):
     rec1 = contract.get_assessment(aid)
     assert rec1["requester"] == str(OTHER_USER)
 
-    def mock_web_get(url):
+    def mock_web_get(url, method="GET"):
         if "commits" in url:
             return MockWebResponse(200, json.dumps({
                 "sha": VALID_SHA,
@@ -895,7 +895,7 @@ def test_requester_resolver_different_accounts(monkeypatch):
             "obligations": [],
         }
 
-    monkeypatch.setattr(gl.nondet.web, "get", mock_web_get)
+    monkeypatch.setattr(gl.nondet.web, "request", mock_web_get)
     monkeypatch.setattr(gl.nondet, "exec_prompt", mock_exec_prompt)
 
     set_sender(RESOLVER)
@@ -909,7 +909,7 @@ def test_malformed_json_llm_output(monkeypatch):
         "GITHUB_REPO", "test-org", "test-repo", VALID_SHA, "COMMERCIAL_INFERENCE"
     )
 
-    def mock_web_get(url):
+    def mock_web_get(url, method="GET"):
         if "commits" in url:
             return MockWebResponse(200, json.dumps({
                 "sha": VALID_SHA,
@@ -920,7 +920,7 @@ def test_malformed_json_llm_output(monkeypatch):
     def mock_exec_prompt(prompt, response_format="json"):
         return "NON_JSON_INVALID_STRING"
 
-    monkeypatch.setattr(gl.nondet.web, "get", mock_web_get)
+    monkeypatch.setattr(gl.nondet.web, "request", mock_web_get)
     monkeypatch.setattr(gl.nondet, "exec_prompt", mock_exec_prompt)
 
     set_sender(RESOLVER)
@@ -936,10 +936,10 @@ def test_http_404_handling(monkeypatch):
         "GITHUB_REPO", "test-org", "test-repo", VALID_SHA, "COMMERCIAL_INFERENCE"
     )
 
-    def mock_web_get(url):
+    def mock_web_get(url, method="GET"):
         return MockWebResponse(404, b"Not Found")
 
-    monkeypatch.setattr(gl.nondet.web, "get", mock_web_get)
+    monkeypatch.setattr(gl.nondet.web, "request", mock_web_get)
 
     set_sender(RESOLVER)
     verdict = contract.resolve_assessment(aid)
@@ -954,10 +954,10 @@ def test_http_500_handling(monkeypatch):
         "GITHUB_REPO", "test-org", "test-repo", VALID_SHA, "COMMERCIAL_INFERENCE"
     )
 
-    def mock_web_get(url):
+    def mock_web_get(url, method="GET"):
         return MockWebResponse(500, b"Internal Server Error")
 
-    monkeypatch.setattr(gl.nondet.web, "get", mock_web_get)
+    monkeypatch.setattr(gl.nondet.web, "request", mock_web_get)
 
     set_sender(RESOLVER)
     verdict = contract.resolve_assessment(aid)
@@ -972,10 +972,10 @@ def test_timeout_exception_handling(monkeypatch):
         "GITHUB_REPO", "test-org", "test-repo", VALID_SHA, "COMMERCIAL_INFERENCE"
     )
 
-    def mock_web_get(url):
+    def mock_web_get(url, method="GET"):
         raise Exception("Request timeout")
 
-    monkeypatch.setattr(gl.nondet.web, "get", mock_web_get)
+    monkeypatch.setattr(gl.nondet.web, "request", mock_web_get)
 
     set_sender(RESOLVER)
     verdict = contract.resolve_assessment(aid)
@@ -990,10 +990,10 @@ def test_empty_body_handling(monkeypatch):
         "GITHUB_REPO", "test-org", "test-repo", VALID_SHA, "COMMERCIAL_INFERENCE"
     )
 
-    def mock_web_get(url):
+    def mock_web_get(url, method="GET"):
         return MockWebResponse(200, b"")
 
-    monkeypatch.setattr(gl.nondet.web, "get", mock_web_get)
+    monkeypatch.setattr(gl.nondet.web, "request", mock_web_get)
 
     set_sender(RESOLVER)
     verdict = contract.resolve_assessment(aid)

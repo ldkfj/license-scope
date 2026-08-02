@@ -2,7 +2,6 @@
 
 import React, { useState } from 'react';
 import { Send, Shield, AlertCircle, CheckCircle2, ExternalLink } from 'lucide-react';
-import { TransactionStatus } from 'genlayer-js/types';
 import {
   ArtifactKind,
   UseProfile,
@@ -16,6 +15,7 @@ import {
   parseAssessmentRecord,
   POLICY_HASH,
 } from '@/lib/genlayer';
+import { waitForFinalizedTransaction } from '@/lib/finality';
 
 interface RequestAssessmentFormProps {
   onTransactionSuccess: () => Promise<void>;
@@ -87,10 +87,13 @@ export const RequestAssessmentForm: React.FC<RequestAssessmentFormProps> = ({
       setTxHash(hashStr);
       setStatusMsg('Transaction broadcasted. Waiting for block receipt...');
 
-      await client.waitForTransactionReceipt({
-        hash: hash as unknown as Parameters<typeof client.waitForTransactionReceipt>[0]['hash'],
-        status: TransactionStatus.FINALIZED,
-      });
+      await waitForFinalizedTransaction(
+        client,
+        hash as unknown as Parameters<typeof client.waitForTransactionReceipt>[0]['hash'],
+        ({ round }) => {
+          setStatusMsg(`Studionet is still processing this transaction. Continuing to track the existing hash (reconciliation round ${round})...`);
+        },
+      );
       const receipt = await client.getTransaction({
         hash: hash as unknown as Parameters<typeof client.getTransaction>[0]['hash'],
       });

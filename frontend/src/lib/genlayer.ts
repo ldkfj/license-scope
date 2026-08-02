@@ -25,6 +25,8 @@ export const STUDIONET_EXPLORER_BASE = 'https://explorer-studio.genlayer.com/';
 
 export interface EthereumProvider {
   request: (args: { method: string; params?: unknown[] }) => Promise<unknown>;
+  on?: (event: string, listener: (...args: unknown[]) => void) => void;
+  removeListener?: (event: string, listener: (...args: unknown[]) => void) => void;
 }
 
 export const isContractConfigured = (): boolean => {

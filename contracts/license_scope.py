@@ -663,7 +663,7 @@ def _fetch_and_evaluate_evidence(
     commit_url = f"https://api.github.com/repos/{ns}/{name}/commits/{rev}"
     try:
         total_requests += 1
-        resp = gl.nondet.web.get(commit_url)
+        resp = gl.nondet.web.request(commit_url, method="GET")
         status_code = getattr(resp, "status_code", 0)
         if status_code == 200:
             txt = _safe_decode_utf8_response_body(resp)
@@ -786,7 +786,7 @@ def _fetch_and_evaluate_evidence(
             break
         try:
             total_requests += 1
-            resp = gl.nondet.web.get(l_url)
+            resp = gl.nondet.web.request(l_url, method="GET")
             status_code = getattr(resp, "status_code", 0)
             if status_code == 200:
                 txt = _safe_decode_utf8_response_body(resp)

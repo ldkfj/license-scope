@@ -2,7 +2,6 @@
 
 import React, { useState } from 'react';
 import { Layers, RefreshCw, Eye, Play, RotateCcw, Search, CheckCircle2, XCircle, HelpCircle, ExternalLink } from 'lucide-react';
-import { TransactionStatus } from 'genlayer-js/types';
 import {
   AssessmentRecord,
   STATUS_MAP,
@@ -17,6 +16,7 @@ import {
   assertTerminalRecord,
   MatchTriState,
 } from '@/lib/genlayer';
+import { waitForFinalizedTransaction } from '@/lib/finality';
 
 interface AssessmentListProps {
   assessments: AssessmentRecord[];
@@ -68,10 +68,13 @@ export const AssessmentList: React.FC<AssessmentListProps> = ({
       setActiveTxHash(hashStr);
       setStatusMsg(`Transaction broadcasted. Waiting for block receipt...`);
 
-      await client.waitForTransactionReceipt({
-        hash: hash as unknown as Parameters<typeof client.waitForTransactionReceipt>[0]['hash'],
-        status: TransactionStatus.FINALIZED,
-      });
+      await waitForFinalizedTransaction(
+        client,
+        hash as unknown as Parameters<typeof client.waitForTransactionReceipt>[0]['hash'],
+        ({ round }) => {
+          setStatusMsg(`Studionet is still processing resolve #${record.assessment_id}. Continuing to track the existing hash (reconciliation round ${round})...`);
+        },
+      );
       const receipt = await client.getTransaction({
         hash: hash as unknown as Parameters<typeof client.getTransaction>[0]['hash'],
       });
@@ -134,10 +137,13 @@ export const AssessmentList: React.FC<AssessmentListProps> = ({
       setActiveTxHash(hashStr);
       setStatusMsg(`Transaction broadcasted. Waiting for block receipt...`);
 
-      await client.waitForTransactionReceipt({
-        hash: hash as unknown as Parameters<typeof client.waitForTransactionReceipt>[0]['hash'],
-        status: TransactionStatus.FINALIZED,
-      });
+      await waitForFinalizedTransaction(
+        client,
+        hash as unknown as Parameters<typeof client.waitForTransactionReceipt>[0]['hash'],
+        ({ round }) => {
+          setStatusMsg(`Studionet is still processing retry #${record.assessment_id}. Continuing to track the existing hash (reconciliation round ${round})...`);
+        },
+      );
       const receipt = await client.getTransaction({
         hash: hash as unknown as Parameters<typeof client.getTransaction>[0]['hash'],
       });
@@ -187,7 +193,11 @@ export const AssessmentList: React.FC<AssessmentListProps> = ({
   const filteredAssessments = assessments.filter((rec) => {
     const term = searchTerm.toLowerCase().trim();
     if (!term) return true;
+    const normalizedIdTerm = term.startsWith('#') ? term.slice(1).trim() : term;
+    const matchesAssessmentId = /^\d+$/.test(normalizedIdTerm)
+      && String(rec.assessment_id) === normalizedIdTerm;
     return (
+      matchesAssessmentId ||
       rec.canonical_key.toLowerCase().includes(term) ||
       rec.namespace.toLowerCase().includes(term) ||
       rec.name.toLowerCase().includes(term) ||
@@ -295,7 +305,9 @@ export const AssessmentList: React.FC<AssessmentListProps> = ({
           <p className="text-xs text-slate-500 max-w-sm mx-auto">
             {!isConfigured
               ? 'Contract is not configured. Configure NEXT_PUBLIC_CONTRACT_ADDRESS in .env.local.'
-              : 'Submit a new rights attestation request to register an assessment record on Studionet.'}
+              : assessments.length > 0
+                ? `No records match "${searchTerm.trim()}". Clear the search or try an assessment ID such as #1.`
+                : 'Submit a new rights attestation request to register an assessment record on Studionet.'}
           </p>
         </div>
       ) : (
