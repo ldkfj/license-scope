@@ -3,9 +3,10 @@
 ## Gate status
 
 - Classification: `UPGRADABLE`
-- Checkpoint: `PRE_DEPLOY` repair re-review after failed execution
-- Redeployment authorization: **NOT GRANTED**
-- Main redeployment transaction: **must not be sent until the repaired revision receives fresh approval and the user separately confirms it**
+- Checkpoint: `PRE_DEPLOY` upgrade-candidate re-review
+- Redeployment authorization: **CONSUMED** for transaction `0xd28ff503fa44f073ed4f741427a809fa6c1717bb1f05b64901828cb0b71705d5`
+- Current deployment: **FINALIZED with successful execution, but live evidence evaluation is blocked by the deployed web-response API mismatch**
+- Main-contract upgrade authorization: **NOT GRANTED**
 
 The user selected one public wallet for both deployment and upgrade authority. No private key, seed phrase, token, credential, or wallet export belongs in this document.
 
@@ -25,12 +26,38 @@ The user selected one public wallet for both deployment and upgrade authority. N
 | Deployment wallet public address | `0x7885536194bbd6e1d0a6ab991ab215cfa9542339` |
 | External upgrader public address | `0x7885536194bbd6e1d0a6ab991ab215cfa9542339` |
 | Constructor arguments | `upgrader_address = 0x7885536194bbd6e1d0a6ab991ab215cfa9542339` |
-| Contract address |  |
-| Deployment transaction |  |
+| Contract address | `0x8f1e48e52241E1B8b3320b953901ec7eeE481Ac7` |
+| Deployment transaction | `0xd28ff503fa44f073ed4f741427a809fa6c1717bb1f05b64901828cb0b71705d5` |
 | Explorer contract/transaction URL |  |
 | Live web URL |  |
 
 The same wallet fills both roles. This concentrates deployment identity and code-replacement authority in one key: key loss may make recovery impossible, while key compromise may permit code replacement. The user selected this arrangement; it does not authorize deployment.
+
+## Upgrade candidate
+
+| Field | Value |
+|---|---|
+| Implementation commit | `a70dd74e395e71a5e165b085ebb3714125473030` |
+| Candidate contract SHA-256 | `035293bf37b655b3a17ebb8cb44eaeafcc54c0e01f71a24741cd9e0f657bef0c` |
+| Target contract | `0x8f1e48e52241E1B8b3320b953901ec7eeE481Ac7` |
+| Authorized upgrader if approved | `0x7885536194bbd6e1d0a6ab991ab215cfa9542339` |
+| Persistent storage layout change | None |
+| Root Slot upgrade transaction |  |
+| Upgrade authorization | **NOT GRANTED** |
+
+The candidate replaces `gl.nondet.web.get()` with documented `gl.nondet.web.request(url, method="GET")` calls so the contract can safely inspect `response.status_code`. It does not alter persistent fields, record layout, policy version/hash, authorization, state machine, retry limit, or upgrade logic. Fresh Codex and anonymous `PRE_DEPLOY` approval, a separate safe rehearsal, active-wallet verification, and explicit user confirmation are required before the main contract can be upgraded.
+
+## Successful redeployment core evidence
+
+- Transaction status: `FINALIZED`.
+- Normalized execution result: `FINISHED_WITH_RETURN`.
+- Consensus result: `MAJORITY_AGREE`; all five validator votes were `AGREE`.
+- Sender and origin: selected wallet `0x7885536194bbd6e1d0a6ab991ab215cfa9542339`.
+- Constructor integer decoded to the selected external upgrader address.
+- Transaction-generated and user-reported contract address both equal `0x8f1e48e52241E1B8b3320b953901ec7eeE481Ac7`.
+- Embedded deployment source and live `gen_getContractCode` readback are byte-for-byte equal to the reviewed local contract; SHA-256 is `32e9a4b9f9d2e095e1a4504e0beec90ae46fabda1b2bdf9980921a922ee6b3a8`.
+- Initial readback: `get_assessment_count() == 0`; `get_policy_profile("COMMERCIAL_INFERENCE")` returned `LS-V1`, the reviewed policy hash, `allows_commercial: true`, and supported kind `GITHUB_REPO`.
+- Full lifecycle writes, multi-account behavior, Explorer evidence, and the separate safe-upgrade rehearsal remain pending and are not implied by this core acceptance.
 
 ## Failed deployment reconciliation
 
@@ -79,7 +106,7 @@ An upgrade must preserve:
 
 LicenseScope V1 has no linked contracts, writer registry, bounty, funding, escrow, or post-deployment cross-contract configuration.
 
-The frontend may be configured only after post-deployment acceptance proves the exact Studionet address and deployed-source parity. `NEXT_PUBLIC_CONTRACT_ADDRESS` must remain blank before that point.
+The local frontend is configured to the current Studionet address for authorized live testing. It must not be presented as release-complete or switched to any replacement address until the applicable post-deployment checks pass.
 
 ## Pre-deployment identity procedure
 

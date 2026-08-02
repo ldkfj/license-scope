@@ -6,23 +6,58 @@
 |---|---|
 | Project | LicenseScope |
 | Submission category | `PROJECT` |
-| Checkpoint | PRE_DEPLOY repair re-review after failed execution |
-| Source-code commit | `6e9952d0402b9bac6a56806f90717d43c734428f` |
-| Frontend receipt-normalization commit | `248e49db1225d589719709d05056d4295740431f` |
+| Checkpoint | PRE_DEPLOY upgrade re-review after live web-response incompatibility |
+| Upgrade-candidate implementation commit | `a70dd74e395e71a5e165b085ebb3714125473030` |
+| Frontend receipt/finality implementation commit | `a70dd74e395e71a5e165b085ebb3714125473030` |
 | Contract source | `contracts/license_scope.py` |
-| Contract source SHA-256 | `32e9a4b9f9d2e095e1a4504e0beec90ae46fabda1b2bdf9980921a922ee6b3a8` |
+| Upgrade-candidate contract SHA-256 | `035293bf37b655b3a17ebb8cb44eaeafcc54c0e01f71a24741cd9e0f657bef0c` |
+| Currently deployed contract SHA-256 | `32e9a4b9f9d2e095e1a4504e0beec90ae46fabda1b2bdf9980921a922ee6b3a8` |
 | Policy version | `LS-V1` |
 | Policy manifest hash | `sha256:1105b19ea7786bbd5ace24445845997e914e726cd2f80ddf83d8a6f8f8769532` |
 | Network target | GenLayer Studionet, chain ID `61999` |
 | Selected deployment wallet | `0x7885536194bbd6e1d0a6ab991ab215cfa9542339` |
 | Selected external upgrader | `0x7885536194bbd6e1d0a6ab991ab215cfa9542339` |
-| Accepted contract address |  |
-| Accepted deployment transaction |  |
+| Accepted contract address | `0x8f1e48e52241E1B8b3320b953901ec7eeE481Ac7` |
+| Accepted deployment transaction | `0xd28ff503fa44f073ed4f741427a809fa6c1717bb1f05b64901828cb0b71705d5` |
 | Failed deployment transaction | `0x1ad0db6cb3c6e3258a86d9ced30a1b244d1aaf5ffb4218ac2aaef479b990e1a3` |
 | Explorer |  |
 | Live web |  |
 
-The canonical anonymous handoff supplies the exact final evidence-package commit. The source-code commit above contains the constructor compatibility repair and regression tests; the frontend repair commit closes the current-Studionet receipt-shape blocker reported against evidence package `5a651115fed607860ba3b05dd75bb5c544eafce0`. Accepted deployment/live fields remain blank because the only deployment attempt finalized with a contract execution error.
+Anonymous `PRE_DEPLOY` approval was granted for package `0b9b61200b5e2cb88d0e6747d055a34cdedd7a13`, and its contract source was deployed successfully. Live lifecycle testing then found that the deployed source used `gl.nondet.web.get()` while requiring `response.status_code`; two finalized resolution attempts safely returned `UNRESOLVED / SOURCE_MISSING` because Studionet supplied no such attribute and the fail-closed default became `0`. Commit `a70dd74e395e71a5e165b085ebb3714125473030` changes the evidence requests to the currently documented `gl.nondet.web.request(url, method="GET")` API and adds frontend duplicate-safe finality reconciliation. This source change invalidates the earlier approval and requires this fresh `PRE_DEPLOY` upgrade-candidate review. No upgrade authorization has been granted.
+
+## Successful redeployment core evidence
+
+- Transaction `0xd28ff503fa44f073ed4f741427a809fa6c1717bb1f05b64901828cb0b71705d5` reached `FINALIZED`.
+- The production frontend validator normalized the real response as `FINISHED_WITH_RETURN` and `MAJORITY_AGREE`.
+- All five recorded validator votes were `AGREE`; leader and validator execution receipts reported success.
+- Sender/origin matched the selected wallet and transaction calldata contained its integer address representation.
+- Transaction-generated address matched `0x8f1e48e52241E1B8b3320b953901ec7eeE481Ac7`.
+- Embedded source and live `gen_getContractCode` output were byte-for-byte equal to the reviewed contract and SHA-256 `32e9a4b9f9d2e095e1a4504e0beec90ae46fabda1b2bdf9980921a922ee6b3a8`.
+- Initial state readback returned assessment count `0` and the reviewed `LS-V1` policy profile/hash.
+- This is core deployment acceptance only; live lifecycle writes, multi-account evidence, Explorer verification, and the safe-upgrade rehearsal remain pending.
+
+## Live lifecycle finding and retained transactions
+
+All four transactions below reached `FINALIZED`; the frontend receipt validator accepted successful execution and `MAJORITY_AGREE`, and each state transition was confirmed by contract readback:
+
+| Action | Transaction | Readback |
+|---|---|---|
+| Request assessment #1 | `0x9df0882dab7aab26310072ed97951ce931a1b7020ed7653a06939b79f8393b73` | Exactly one record; `PENDING`; requester matched `0x7885536194bbd6e1d0a6ab991ab215cfa9542339` |
+| Resolve attempt 1 | `0x1695cea9c7179c579358325e2609597ff82426593049d5df7f74e0832a7e54b5` | `UNRESOLVED / SOURCE_MISSING`; explanation reported commit endpoint status `0`; retry count `0` |
+| Atomic retry | `0xa67eb7c46774d6c6b3289d2263dbf0db2bdb0fbfe0bf3a3e0568375e051edf2f` | Reset to `PENDING`; retry count incremented to `1` |
+| Resolve attempt 2 | `0x15fb12a796a8a04f1a8a5cf8da23f08d2ab1630472ad818bbb7f0039253d4cbf` | Again `UNRESOLVED / SOURCE_MISSING` with endpoint status `0`; retry count remained `1` |
+
+The public GitHub commit endpoint independently returned HTTP `200`, so the repeated fail-closed result is bound to the deployed response/API mismatch rather than a missing repository or revision. The final retry allowance remains intentionally unused. These transactions are defect-reproduction and safe-state evidence, not successful license-verdict evidence.
+
+## Upgrade candidate closure
+
+- Both GitHub commit and immutable raw-file fetches now use `gl.nondet.web.request(url, method="GET")`, the official API form that exposes `status_code`.
+- Persistent storage declarations and `AssessmentRecord` layout are unchanged.
+- Existing assessment IDs, canonical keys, policy bindings, statuses, evidence fields, and retry counts require preservation during any authorized upgrade.
+- The navbar exposes an explicit top-right wallet control and live account/network state.
+- Submit, resolve, and retry retain one broadcast hash and reconcile it across repeated RPC timeout/error rounds; action controls remain locked until finality and no second write is emitted.
+- Registry search accepts `1` and `#1`, and filtered-empty state is distinguished from an empty registry.
+- The currently deployed contract has not been upgraded; deployed-source parity therefore remains bound to the older hash until a separately authorized upgrade succeeds.
 
 ## Failed deployment evidence
 
@@ -139,7 +174,7 @@ npm --prefix frontend audit --audit-level=high
 Results:
 
 ```text
-Frontend unit behavior: 23 passed
+Frontend unit behavior: 24 passed
 TypeScript: PASS
 ESLint: PASS
 Next.js production build: PASS
@@ -147,7 +182,7 @@ Static route: /
 npm audit: 0 vulnerabilities
 ```
 
-The frontend tests cover both legacy camel-case and sanitized current-Studionet response shapes; numeric/name and camel/snake contradiction rejection; optional-but-noncontradictory `consensus_data.final`; mandatory non-empty leader receipts; leader execution, decoded result, and GenVM error rejection; replay of the retained finalized-with-error transaction; explicit rejection of non-final `ACCEPTED`; strict record parsing; immutable identity readback; and terminal-state invariants. A read-only live replay of the retained hash reached the intended validator branch and was rejected specifically with `Leader execution result rejected: ERROR.`
+The frontend tests cover both legacy camel-case and sanitized current-Studionet response shapes; numeric/name and camel/snake contradiction rejection; optional-but-noncontradictory `consensus_data.final`; mandatory non-empty leader receipts; leader execution, decoded result, and GenVM error rejection; replay of the retained finalized-with-error transaction; explicit rejection of non-final `ACCEPTED`; strict record parsing; immutable identity readback; terminal-state invariants; and same-hash finality reconciliation after a simulated timeout. A read-only live replay of the retained hash reached the intended validator branch and was rejected specifically with `Leader execution result rejected: ERROR.`
 
 A detached clean worktree at package commit `7010534d8e4badadd90853ef07bc67be449c255c` reproduced both stacks from lockfiles: a fresh Python environment installed and checked all 57 locked packages, passed GenVM lint/validation and 49 direct tests; `npm ci` installed 378 frontend packages with zero vulnerabilities, followed by 23 frontend tests, typecheck, lint, production build, and audit all passing.
 
@@ -166,13 +201,13 @@ The build detects a protected local `frontend/.env.local`; its content is not pa
 
 | Actor/action | UI/operational path | Contract method | Offline evidence | Live transaction/readback |
 |---|---|---|---|---|
-| Requester creates assessment | Request form + browser wallet | `request_assessment` | Direct pending/duplicate tests; frontend finality/readback tests |  |
-| Resolver evaluates pending assessment | Registry resolve action | `resolve_assessment` | Direct evidence/consensus/adversarial tests; frontend terminal readback tests |  |
-| Retry caller resets unresolved record | Registry retry action | `retry_assessment` | Direct atomic-reset/limit tests; frontend PENDING invariant tests |  |
+| Requester creates assessment | Request form + browser wallet | `request_assessment` | Direct pending/duplicate tests; frontend finality/readback tests | `0x9df088...93b73`; assessment #1 `PENDING` readback |
+| Resolver evaluates pending assessment | Registry resolve action | `resolve_assessment` | Direct evidence/consensus/adversarial tests; frontend terminal readback tests | `0x1695ce...e54b5` and `0x15fb12...d4cbf`; both safely `UNRESOLVED / SOURCE_MISSING`, exposing deployed API mismatch |
+| Retry caller resets unresolved record | Registry retry action | `retry_assessment` | Direct atomic-reset/limit tests; frontend PENDING invariant tests | `0xa67eb7...edf2f`; atomic `PENDING`, retry count `1` readback |
 | External upgrader replaces code | Documented operational path | `upgrade` | Direct registration/authorization/no-mutation/empty-code tests |  |
 | Reader inspects records/policy | Registry/detail views | contract view methods | Direct view tests; strict frontend parser tests |  |
 
-Live proof cells are intentionally blank until POST_DEPLOY_TEST.
+The retained lifecycle rows prove writes, finality, and safe failure/retry behavior. They do not satisfy the successful verdict branch, multi-account requirement, or upgraded-source parity required at `POST_DEPLOY_TEST`.
 
 ## Source-of-truth and security findings
 
@@ -188,12 +223,14 @@ Live proof cells are intentionally blank until POST_DEPLOY_TEST.
 
 ## Known limitations and pending gates
 
-- No Studionet contract has been successfully deployed or accepted; one finalized deployment attempt ended in contract execution error.
-- No successful live transaction/readback evidence exists.
+- The current Studionet deployment is executable and source-verified but cannot complete GitHub evidence evaluation because of the deployed web-response API mismatch.
+- Upgrade candidate `a70dd74e395e71a5e165b085ebb3714125473030` is not deployed and has no upgrade authorization.
+- Successful verdict, multi-account, upgraded-source parity, Root Slot enforcement, and separate safe-upgrade-rehearsal evidence remain pending.
+- The earlier finalized-with-error transaction remains failure evidence only.
 - No GitHub repository or Vercel deployment exists.
 - V1 supports only public GitHub repositories at immutable commit SHAs.
 - LicenseScope is not legal advice.
 - Root Slot native locking, deployed-code readback, and upgrade redispatch require authorized live rehearsal.
-- Anonymous review returned `CHANGES REQUIRED` for package `5a651115fed607860ba3b05dd75bb5c544eafce0`; the receipt blocker is repaired, but fresh Codex and anonymous approval are required for the new exact evidence package.
+- Earlier anonymous approval applies only to package `0b9b61200b5e2cb88d0e6747d055a34cdedd7a13` and is invalid for the upgrade candidate; fresh exact-revision approval is required.
 
-No successful deployment, push, Vercel release, or live lifecycle claim is made by this document.
+No completed live lifecycle, push, Vercel release, or Task-completion claim is made by this document.
