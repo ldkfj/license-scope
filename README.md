@@ -128,7 +128,7 @@ Install the frontend from its lockfile:
 npm --prefix frontend ci
 ```
 
-Keep the contract address empty before deployment:
+Keep the contract address empty before a successful, accepted deployment:
 
 ```text
 NEXT_PUBLIC_CONTRACT_ADDRESS=
@@ -182,6 +182,6 @@ The secret-free draft manifest, storage compatibility policy, reset recovery pro
 - `HF_MODEL` and `HF_DATASET` are explicitly locked as `UNSUPPORTED_V1`.
 - Private/authenticated repositories and caller-supplied evidence URLs are unsupported.
 - LicenseScope provides an operational policy decision, not legal advice.
-- No Studionet deployment or live lifecycle evidence exists yet.
+- One Studionet deployment attempt finalized with contract execution error; no successful deployment or live lifecycle evidence exists yet.
 - Root Slot lock enforcement, deployed-code readback, and upgrade redispatch require authorized Studionet verification.
 - Availability and semantic quality still depend on public evidence and validator consensus; insufficient or custom evidence resolves safely to `UNRESOLVED`.

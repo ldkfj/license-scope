@@ -3,9 +3,9 @@
 ## Gate status
 
 - Classification: `UPGRADABLE`
-- Checkpoint: `PRE_DEPLOY` preparation
-- Deployment authorization: **NOT GRANTED**
-- Main deployment transaction: **must not be sent until the user separately confirms it**
+- Checkpoint: `PRE_DEPLOY` repair re-review after failed execution
+- Redeployment authorization: **NOT GRANTED**
+- Main redeployment transaction: **must not be sent until the repaired revision receives fresh approval and the user separately confirms it**
 
 The user selected one public wallet for both deployment and upgrade authority. No private key, seed phrase, token, credential, or wallet export belongs in this document.
 
@@ -18,10 +18,10 @@ The user selected one public wallet for both deployment and upgrade authority. N
 | RPC | `https://studio.genlayer.com/api` |
 | Explorer | `https://explorer-studio.genlayer.com/` |
 | Contract source | `contracts/license_scope.py` |
-| Contract source SHA-256 | `8a9e10aed946d2860145451a898a726dd8c726689be7e2fff1e557afa5cc43ed` |
+| Contract source SHA-256 | `32e9a4b9f9d2e095e1a4504e0beec90ae46fabda1b2bdf9980921a922ee6b3a8` |
 | Policy version | `LS-V1` |
 | Policy manifest hash | `sha256:1105b19ea7786bbd5ace24445845997e914e726cd2f80ddf83d8a6f8f8769532` |
-| Source-code commit | `dc5f4c3673e14427f563a843ef5f33cef3b225f5` |
+| Source-code commit | `6e9952d0402b9bac6a56806f90717d43c734428f` |
 | Deployment wallet public address | `0x7885536194bbd6e1d0a6ab991ab215cfa9542339` |
 | External upgrader public address | `0x7885536194bbd6e1d0a6ab991ab215cfa9542339` |
 | Constructor arguments | `upgrader_address = 0x7885536194bbd6e1d0a6ab991ab215cfa9542339` |
@@ -32,13 +32,29 @@ The user selected one public wallet for both deployment and upgrade authority. N
 
 The same wallet fills both roles. This concentrates deployment identity and code-replacement authority in one key: key loss may make recovery impossible, while key compromise may permit code replacement. The user selected this arrangement; it does not authorize deployment.
 
+## Failed deployment reconciliation
+
+The first Studionet deployment attempt is retained as failure evidence and must never be resubmitted or represented as an accepted deployment.
+
+| Field | Value |
+|---|---|
+| Transaction | `0x1ad0db6cb3c6e3258a86d9ced30a1b244d1aaf5ffb4218ac2aaef479b990e1a3` |
+| Generated address | `0x597a4d0080C725059d922305e87Cb3b95fc0c5f0` — invalid/unaccepted; do not configure or use |
+| Sender | `0x7885536194bbd6e1d0a6ab991ab215cfa9542339` |
+| Transaction status | `FINALIZED` |
+| Consensus result | `MAJORITY_AGREE`; 5/5 validators voted `AGREE` |
+| Execution result | `ERROR`; leader result `contract_error` / `exit_code 1` |
+| Root cause | Studio decoded the constructor address as an integer; `_parse_address` passed it directly to `Address`, causing `OverflowError` |
+
+The repaired constructor converts a valid unsigned 160-bit integer to exactly 20 big-endian bytes. Regression tests exercise the Studio integer representation and reject negative or oversized values without truncation.
+
 ## Upgradability implementation
 
 - Constructor accepts one external `upgrader_address` and appends it to `gl.storage.Root.get().upgraders`.
 - `upgrade(new_code: bytes)` is public and write-only.
 - An explicit membership guard rejects callers absent from the Root upgrader list.
 - Empty upgrade bytecode is rejected before Root code mutation.
-- Direct-mode tests cover intended registration, authorized byte replacement, unauthorized rejection with no mutation, and empty-payload rejection with no mutation.
+- Direct-mode tests cover Address and Studio-integer upgrader registration, integer range rejection, authorized byte replacement, unauthorized rejection with no mutation, and empty-payload rejection with no mutation.
 - Native locked Root Slot enforcement, deployed code replacement, and redispatch are marked `VERIFY-AT-STUDIO` and require a disposable rehearsal after authorization.
 
 ## Storage compatibility plan
@@ -71,7 +87,7 @@ The frontend may be configured only after post-deployment acceptance proves the 
 2. **Completed:** Codex format-checked both public addresses for the intended Studionet workflow and recorded that they are the same wallet.
 3. **Completed:** The one-wallet concentration risk is recorded above: key loss can prevent recovery and key compromise can permit code replacement.
 4. **Completed:** Exact source commit and contract source hash are recorded above.
-5. **Partially completed:** Codex returned `APPROVED` for the corrected package; fresh anonymous co-review approval for the same exact revision/evidence package remains required.
+5. **Pending fresh review:** the failed deployment changed the source and invalidated the earlier PRE_DEPLOY approval. Codex and anonymous co-review must approve the repaired exact revision/evidence package.
 6. Immediately before deployment, verify the active wallet identity, Studionet target, constructor upgrader, and source revision.
 7. Ask the user for a separate explicit confirmation to send the deployment transaction.
 

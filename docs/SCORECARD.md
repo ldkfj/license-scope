@@ -31,7 +31,7 @@ LicenseScope is classified as `PROJECT`, not a standalone `INTELLIGENT_CONTRACT`
 
 **Inspected:** `pyproject.toml`, `uv.lock`, `frontend/package-lock.json`, tests, build configuration, `README.md`, `docs/VERIFICATION.md`, and `docs/DEPLOYMENT_RECOVERY.md`.
 
-**Remaining weakness:** Real deployment/live evidence is not yet available. Integration tests are intentionally skipped without explicit live configuration and therefore are not integration proof.
+**Remaining weakness:** One deployment attempt finalized with contract execution error and is retained only as failure evidence. Successful deployment/live evidence is not yet available. Integration tests are intentionally skipped without explicit live configuration and therefore are not integration proof.
 
 ## Frontend / UX: 3/5
 
@@ -39,7 +39,7 @@ LicenseScope is classified as `PROJECT`, not a standalone `INTELLIGENT_CONTRACT`
 
 **Inspected:** `frontend/src/lib/genlayer.ts`, `frontend/src/lib/validation.ts`, request/resolve/retry components, `frontend/tests/validation.test.ts`, typecheck/lint/build output.
 
-**Remaining weakness:** The complete journeys have not yet been exercised against a real Studionet deployment or deployed Vercel application.
+**Remaining weakness:** The complete journeys have not yet been exercised against a successful, accepted Studionet deployment or deployed Vercel application.
 
 ## Overall evidence-based assessment
 

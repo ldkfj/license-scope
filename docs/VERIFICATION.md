@@ -6,21 +6,31 @@
 |---|---|
 | Project | LicenseScope |
 | Submission category | `PROJECT` |
-| Checkpoint | PRE_DEPLOY preparation |
-| Source-code commit | `dc5f4c3673e14427f563a843ef5f33cef3b225f5` |
+| Checkpoint | PRE_DEPLOY repair re-review after failed execution |
+| Source-code commit | `6e9952d0402b9bac6a56806f90717d43c734428f` |
 | Contract source | `contracts/license_scope.py` |
-| Contract source SHA-256 | `8a9e10aed946d2860145451a898a726dd8c726689be7e2fff1e557afa5cc43ed` |
+| Contract source SHA-256 | `32e9a4b9f9d2e095e1a4504e0beec90ae46fabda1b2bdf9980921a922ee6b3a8` |
 | Policy version | `LS-V1` |
 | Policy manifest hash | `sha256:1105b19ea7786bbd5ace24445845997e914e726cd2f80ddf83d8a6f8f8769532` |
 | Network target | GenLayer Studionet, chain ID `61999` |
 | Selected deployment wallet | `0x7885536194bbd6e1d0a6ab991ab215cfa9542339` |
 | Selected external upgrader | `0x7885536194bbd6e1d0a6ab991ab215cfa9542339` |
-| Contract address |  |
-| Deployment transaction |  |
+| Accepted contract address |  |
+| Accepted deployment transaction |  |
+| Failed deployment transaction | `0x1ad0db6cb3c6e3258a86d9ced30a1b244d1aaf5ffb4218ac2aaef479b990e1a3` |
 | Explorer |  |
 | Live web |  |
 
-The canonical anonymous handoff supplies the exact final evidence-package commit. The source-code commit above fixes the contract, frontend, tests, dependency locks, and correction code before the metadata-only evidence commit. Deployment/live fields belong to later checkpoints and are intentionally blank.
+The canonical anonymous handoff supplies the exact final evidence-package commit. The source-code commit above contains the constructor compatibility repair and regression tests. Accepted deployment/live fields remain blank because the only deployment attempt finalized with a contract execution error.
+
+## Failed deployment evidence
+
+- Generated address: `0x597a4d0080C725059d922305e87Cb3b95fc0c5f0` — invalid/unaccepted and prohibited from frontend configuration.
+- Sender matched the selected wallet: `0x7885536194bbd6e1d0a6ab991ab215cfa9542339`.
+- Transaction reached `FINALIZED` with `MAJORITY_AGREE`; all five validators voted `AGREE`.
+- Leader and validators returned `execution_result: ERROR`, `contract_error`, and `exit_code 1`.
+- Traceback terminated at `_parse_address` because Studio supplied the constructor address as an integer and `Address(int)` overflowed.
+- Commit `6e9952d0402b9bac6a56806f90717d43c734428f` converts valid unsigned 160-bit integers to exactly 20 big-endian bytes and adds Studio-shaped regression coverage.
 
 ## Offline command evidence
 
@@ -70,12 +80,13 @@ env -u PYTHONPATH uv run pytest tests/direct -v
 Result:
 
 ```text
-45 passed
+49 passed
 ```
 
 Coverage includes:
 
 - intended Root upgrader registration;
+- Studio integer-form constructor registration and strict 160-bit bounds;
 - authorized code replacement;
 - unauthorized upgrade rejection with no code mutation;
 - empty upgrade payload rejection with no code mutation;
@@ -141,9 +152,9 @@ The build detects a protected local `frontend/.env.local`; its content is not pa
 
 ## PRE_DEPLOY correction closure
 
-1. **Clean-checkout SDK reproducibility — CLOSED.** Python is locked to `>=3.13,<3.14`. `tests/conftest.py` calls the official `genlayer-test` loader using the contract's `py-genlayer:1jb45...` dependency header before collection. A clean staged-tree archive created a fresh `.venv`, installed 57 compatible packages, proved `genlayer_before_bootstrap=None`, passed semantic lint/schema extraction, and passed all 45 direct tests. The provenance regression verifies transitive std hash `11rhn...`, 43 official SDK files, and canonical SDK tree SHA-256 `bc2979c4b22cd8ef1363db7031c9d1d2c27184ab950900c731f3e29c261254b2`.
+1. **Clean-checkout SDK reproducibility — CLOSED.** Python is locked to `>=3.13,<3.14`. A detached clean worktree at repaired source commit `6e9952d0402b9bac6a56806f90717d43c734428f` created a fresh `.venv`, installed and checked all 57 locked packages, passed semantic lint/schema extraction, and passed all 49 direct tests. `tests/conftest.py` calls the official `genlayer-test` loader using the contract's `py-genlayer:1jb45...` dependency header before collection. The provenance regression verifies transitive std hash `11rhn...`, 43 official SDK files, and canonical SDK tree SHA-256 `bc2979c4b22cd8ef1363db7031c9d1d2c27184ab950900c731f3e29c261254b2`.
 2. **Consensus list canonicalization — CLOSED.** License IDs, obligations, and evidence references are validated, deduplicated, and sorted before stable comparison and before storage. Regression tests prove permutation/duplicate equivalence while different obligations and evidence still disagree.
-3. **PRE_DEPLOY documentation consistency — CLOSED.** README, scorecard, verification document, and recovery manifest now agree: wallet/upgrader selected, Codex technical verdict `APPROVED`, anonymous re-review pending, and deployment not authorized.
+3. **Failed deployment reconciliation — CLOSED FOR RE-REVIEW.** The manifest and this verification document retain the failed hash, distinguish finality from execution success, prohibit the invalid generated address, and require fresh approval plus explicit authorization before redeployment.
 4. **Dependency audit observation — CLOSED.** Lockfile overrides resolve `postcss` to `8.5.18` and `sharp` to `0.35.0`; `npm audit` reports zero vulnerabilities and unit/typecheck/lint/build gates pass.
 5. **Receipt observation — CLOSED.** The standalone validator rejects `ACCEPTED`; only `FINALIZED` may proceed to execution/consensus/leader validation.
 6. **Integration-fixture observation — CLOSED FOR PRE_DEPLOY PLAN.** The fabricated happy-path SHA was replaced by a verified real immutable CC-BY-NC-4.0 repository revision with exact `BLOCK` assertions. Live execution remains deferred to `POST_DEPLOY_TEST`.
@@ -174,12 +185,12 @@ Live proof cells are intentionally blank until POST_DEPLOY_TEST.
 
 ## Known limitations and pending gates
 
-- No Studionet contract has been deployed.
-- No live transaction/readback evidence exists.
+- No Studionet contract has been successfully deployed or accepted; one finalized deployment attempt ended in contract execution error.
+- No successful live transaction/readback evidence exists.
 - No GitHub repository or Vercel deployment exists.
 - V1 supports only public GitHub repositories at immutable commit SHAs.
 - LicenseScope is not legal advice.
 - Root Slot native locking, deployed-code readback, and upgrade redispatch require authorized live rehearsal.
-- Codex issued `APPROVED` for the corrected PRE_DEPLOY package; fresh anonymous re-review approval remains required for the exact final evidence-package commit.
+- The earlier PRE_DEPLOY approval is invalidated by the source repair; fresh Codex and anonymous approval are required for the exact repaired evidence package.
 
-No deployment, push, Vercel release, or live lifecycle claim is made by this document.
+No successful deployment, push, Vercel release, or live lifecycle claim is made by this document.
