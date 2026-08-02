@@ -7,10 +7,10 @@
 | Project | LicenseScope |
 | Submission category | `PROJECT` |
 | Checkpoint | PRE_DEPLOY upgrade re-review after live web-response incompatibility |
-| Upgrade-candidate implementation commit | `a70dd74e395e71a5e165b085ebb3714125473030` |
-| Frontend receipt/finality implementation commit | `a70dd74e395e71a5e165b085ebb3714125473030` |
+| Upgrade-candidate implementation commit | `a055548b3fa56a279ae7376cfcb48445cf80ff9d` |
+| Frontend receipt/finality implementation commit | `a055548b3fa56a279ae7376cfcb48445cf80ff9d` |
 | Contract source | `contracts/license_scope.py` |
-| Upgrade-candidate contract SHA-256 | `035293bf37b655b3a17ebb8cb44eaeafcc54c0e01f71a24741cd9e0f657bef0c` |
+| Upgrade-candidate contract SHA-256 | `8afec2c2ce17e5542c3c5ca2343c8d454de48e27980273b1382fc621e1282890` |
 | Currently deployed contract SHA-256 | `32e9a4b9f9d2e095e1a4504e0beec90ae46fabda1b2bdf9980921a922ee6b3a8` |
 | Policy version | `LS-V1` |
 | Policy manifest hash | `sha256:1105b19ea7786bbd5ace24445845997e914e726cd2f80ddf83d8a6f8f8769532` |
@@ -23,7 +23,7 @@
 | Explorer |  |
 | Live web |  |
 
-Anonymous `PRE_DEPLOY` approval was granted for package `0b9b61200b5e2cb88d0e6747d055a34cdedd7a13`, and its contract source was deployed successfully. Live lifecycle testing then found that the deployed source used `gl.nondet.web.get()` while requiring `response.status_code`; two finalized resolution attempts safely returned `UNRESOLVED / SOURCE_MISSING` because Studionet supplied no such attribute and the fail-closed default became `0`. Commit `a70dd74e395e71a5e165b085ebb3714125473030` changes the evidence requests to the currently documented `gl.nondet.web.request(url, method="GET")` API and adds frontend duplicate-safe finality reconciliation. This source change invalidates the earlier approval and requires this fresh `PRE_DEPLOY` upgrade-candidate review. No upgrade authorization has been granted.
+Anonymous `PRE_DEPLOY` approval was granted for package `0b9b61200b5e2cb88d0e6747d055a34cdedd7a13`, and its contract source was deployed successfully. Live lifecycle testing then found that the deployed source used `gl.nondet.web.get()` while requiring `response.status_code`; two finalized resolution attempts safely returned `UNRESOLVED / SOURCE_MISSING` because Studionet supplied no such attribute and the fail-closed default became `0`. A first repair at `a70dd74e395e71a5e165b085ebb3714125473030` remained incompatible because the exact pinned `py-lib-genlayer-std` response exposes `status`, not `status_code`. Commit `a055548b3fa56a279ae7376cfcb48445cf80ff9d` closes that issue with strict dual-shape status normalization and replaces unbounded frontend reconciliation with bounded, cancellable, persisted same-hash recovery. These source changes invalidate every earlier approval and require a fresh exact-hash `PRE_DEPLOY` review. No upgrade authorization has been granted.
 
 ## Successful redeployment core evidence
 
@@ -51,11 +51,11 @@ The public GitHub commit endpoint independently returned HTTP `200`, so the repe
 
 ## Upgrade candidate closure
 
-- Both GitHub commit and immutable raw-file fetches now use `gl.nondet.web.request(url, method="GET")`, the official API form that exposes `status_code`.
+- Both GitHub commit and immutable raw-file fetches use `gl.nondet.web.request(url, method="GET")`. The exact pinned runtime exposes integer `status`; current documentation describes integer `status_code`. The contract accepts either representation, requires them to agree if both exist, enforces HTTP range `100..599`, and fails closed on missing, boolean, invalid, or contradictory values.
 - Persistent storage declarations and `AssessmentRecord` layout are unchanged.
 - Existing assessment IDs, canonical keys, policy bindings, statuses, evidence fields, and retry counts require preservation during any authorized upgrade.
 - The navbar exposes an explicit top-right wallet control and live account/network state.
-- Submit, resolve, and retry retain one broadcast hash and reconcile it across repeated RPC timeout/error rounds; action controls remain locked until finality and no second write is emitted.
+- Submit, resolve, and retry persist one versioned, contract/account/action-bound hash immediately after broadcast. Reconciliation is limited to three SDK rounds of 20 polls, retries only classified transient failures, supports cancellation, and stops on permanent errors. On exhaustion or reload the UI exposes `Resume existing Tx`; every new write remains locked until the same hash reaches validated finality and exact readback.
 - Registry search accepts `1` and `#1`, and filtered-empty state is distinguished from an empty registry.
 - The currently deployed contract has not been upgraded; deployed-source parity therefore remains bound to the older hash until a separately authorized upgrade succeeds.
 
@@ -116,7 +116,7 @@ env -u PYTHONPATH uv run pytest tests/direct -v
 Result:
 
 ```text
-49 passed
+54 passed
 ```
 
 Coverage includes:
@@ -135,6 +135,7 @@ Coverage includes:
 - compatibility matrix, including `INTERNAL_RESEARCH + RESEARCH_ONLY`;
 - strict leader-result wrapper handling and stable consensus comparison, including sorted/deduplicated equivalent list permutations and genuine-difference rejection;
 - exact leader/validator callback counts without a third evaluator run;
+- exact pinned `Response(status=...)`, documented `status_code`, agreeing dual fields, and rejection of missing, boolean, out-of-range, and contradictory status representations;
 - malformed source, 404, 500, timeout, and empty-body handling;
 - terminal immutability, retry atomic reset, retry limit, and duplicate key rejection;
 - end-to-end `CONDITIONAL` and `BLOCK` outcomes in direct mode.
@@ -174,7 +175,7 @@ npm --prefix frontend audit --audit-level=high
 Results:
 
 ```text
-Frontend unit behavior: 24 passed
+Frontend unit behavior: 31 passed
 TypeScript: PASS
 ESLint: PASS
 Next.js production build: PASS
@@ -182,9 +183,9 @@ Static route: /
 npm audit: 0 vulnerabilities
 ```
 
-The frontend tests cover both legacy camel-case and sanitized current-Studionet response shapes; numeric/name and camel/snake contradiction rejection; optional-but-noncontradictory `consensus_data.final`; mandatory non-empty leader receipts; leader execution, decoded result, and GenVM error rejection; replay of the retained finalized-with-error transaction; explicit rejection of non-final `ACCEPTED`; strict record parsing; immutable identity readback; terminal-state invariants; and same-hash finality reconciliation after a simulated timeout. A read-only live replay of the retained hash reached the intended validator branch and was rejected specifically with `Leader execution result rejected: ERROR.`
+The frontend tests cover both legacy camel-case and sanitized current-Studionet response shapes; numeric/name and camel/snake contradiction rejection; optional-but-noncontradictory `consensus_data.final`; mandatory non-empty leader receipts; leader execution, decoded result, and GenVM error rejection; replay of the retained finalized-with-error transaction; explicit rejection of non-final `ACCEPTED`; strict record parsing; immutable identity readback; terminal-state invariants; finite same-hash transient reconciliation; permanent-error stop; pre-flight and in-flight cancellation; exact retry exhaustion; versioned pending-hash persistence; hash-matched clearing; and malformed-storage fail-closed behavior. A read-only live replay of the retained hash reached the intended validator branch and was rejected specifically with `Leader execution result rejected: ERROR.`
 
-A detached clean worktree at package commit `7010534d8e4badadd90853ef07bc67be449c255c` reproduced both stacks from lockfiles: a fresh Python environment installed and checked all 57 locked packages, passed GenVM lint/validation and 49 direct tests; `npm ci` installed 378 frontend packages with zero vulnerabilities, followed by 23 frontend tests, typecheck, lint, production build, and audit all passing.
+A detached clean worktree at implementation commit `a055548b3fa56a279ae7376cfcb48445cf80ff9d` reproduced both stacks from lockfiles: a fresh Python 3.13 environment installed and checked all 57 locked packages, passed GenVM lint/validation, 54 direct tests, and the truthful 3-test integration selection skipped; `npm ci` installed 378 frontend packages with zero vulnerabilities, followed by 31 frontend tests, typecheck, lint, production build, and audit all passing.
 
 The build detects a protected local `frontend/.env.local`; its content is not part of this evidence and must never be committed or disclosed.
 
@@ -224,7 +225,7 @@ The retained lifecycle rows prove writes, finality, and safe failure/retry behav
 ## Known limitations and pending gates
 
 - The current Studionet deployment is executable and source-verified but cannot complete GitHub evidence evaluation because of the deployed web-response API mismatch.
-- Upgrade candidate `a70dd74e395e71a5e165b085ebb3714125473030` is not deployed and has no upgrade authorization.
+- Upgrade candidate `a055548b3fa56a279ae7376cfcb48445cf80ff9d` is not deployed and has no upgrade authorization.
 - Successful verdict, multi-account, upgraded-source parity, Root Slot enforcement, and separate safe-upgrade-rehearsal evidence remain pending.
 - The earlier finalized-with-error transaction remains failure evidence only.
 - No GitHub repository or Vercel deployment exists.

@@ -37,15 +37,15 @@ The same wallet fills both roles. This concentrates deployment identity and code
 
 | Field | Value |
 |---|---|
-| Implementation commit | `a70dd74e395e71a5e165b085ebb3714125473030` |
-| Candidate contract SHA-256 | `035293bf37b655b3a17ebb8cb44eaeafcc54c0e01f71a24741cd9e0f657bef0c` |
+| Implementation commit | `a055548b3fa56a279ae7376cfcb48445cf80ff9d` |
+| Candidate contract SHA-256 | `8afec2c2ce17e5542c3c5ca2343c8d454de48e27980273b1382fc621e1282890` |
 | Target contract | `0x8f1e48e52241E1B8b3320b953901ec7eeE481Ac7` |
 | Authorized upgrader if approved | `0x7885536194bbd6e1d0a6ab991ab215cfa9542339` |
 | Persistent storage layout change | None |
 | Root Slot upgrade transaction |  |
 | Upgrade authorization | **NOT GRANTED** |
 
-The candidate replaces `gl.nondet.web.get()` with documented `gl.nondet.web.request(url, method="GET")` calls so the contract can safely inspect `response.status_code`. It does not alter persistent fields, record layout, policy version/hash, authorization, state machine, retry limit, or upgrade logic. Fresh Codex and anonymous `PRE_DEPLOY` approval, a separate safe rehearsal, active-wallet verification, and explicit user confirmation are required before the main contract can be upgraded.
+The candidate uses `gl.nondet.web.request(url, method="GET")` and strictly normalizes the exact pinned runtime's `response.status` together with the documented `response.status_code` representation. Missing, invalid, boolean, out-of-range, or contradictory status values fail closed. It does not alter persistent fields, record layout, policy version/hash, authorization, state machine, retry limit, or upgrade logic. Fresh Codex and anonymous `PRE_DEPLOY` approval, a separate safe rehearsal, active-wallet verification, and explicit user confirmation are required before the main contract can be upgraded.
 
 ## Successful redeployment core evidence
 
