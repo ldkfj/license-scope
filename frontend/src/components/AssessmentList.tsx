@@ -19,13 +19,10 @@ import {
 import { waitForFinalizedTransaction } from '@/lib/finality';
 import {
   browserStorage,
-  clearPendingTransaction,
-  loadPendingTransaction,
   pendingTransactionTimestamp,
-  savePendingTransaction,
   type PendingAssessmentTransaction,
-  type PendingTransaction,
 } from '@/lib/pendingTransaction';
+import { useTransactionCoordinator } from '@/lib/transactionCoordinator';
 
 interface AssessmentListProps {
   assessments: AssessmentRecord[];
@@ -33,31 +30,22 @@ interface AssessmentListProps {
   onRefresh: () => Promise<void>;
 }
 
-function loadInitialPending(): { pending: PendingTransaction | null; error: string | null } {
-  const storage = browserStorage();
-  if (!storage || !isContractConfigured()) return { pending: null, error: null };
-  try {
-    return { pending: loadPendingTransaction(storage, CONTRACT_ADDRESS), error: null };
-  } catch (error: unknown) {
-    return { pending: null, error: error instanceof Error ? error.message : String(error) };
-  }
-}
-
 export const AssessmentList: React.FC<AssessmentListProps> = ({
   assessments,
   onSelectRecord,
   onRefresh,
 }) => {
-  const [initialPending] = useState(loadInitialPending);
+  const { coordinator, state: coordinatorState } = useTransactionCoordinator();
   const [searchTerm, setSearchTerm] = useState('');
   const [actionLoadingId, setActionLoadingId] = useState<number | null>(null);
-  const [activeTxHash, setActiveTxHash] = useState<string | null>(initialPending.pending && initialPending.pending.action !== 'request' ? initialPending.pending.hash : null);
-  const [statusMsg, setStatusMsg] = useState<string | null>(initialPending.pending && initialPending.pending.action !== 'request' ? `A previously broadcast ${initialPending.pending.action} for #${initialPending.pending.payload.assessmentId} is pending. Resume this exact hash; new writes are locked.` : null);
-  const [errorMsg, setErrorMsg] = useState<string | null>(initialPending.error);
-  const [pendingTx, setPendingTx] = useState<PendingTransaction | null>(initialPending.pending);
+  const [activeTxHash, setActiveTxHash] = useState<string | null>(null);
+  const [statusMsg, setStatusMsg] = useState<string | null>(null);
+  const [errorMsg, setErrorMsg] = useState<string | null>(null);
   const reconciliationController = useRef<AbortController | null>(null);
 
   const isConfigured = isContractConfigured();
+  const pendingTx = coordinatorState.phase === 'pending' ? coordinatorState.transaction : null;
+  const coordinatorError = coordinatorState.phase === 'blocked' ? coordinatorState.error : null;
 
   const reconcileAssessment = async (pending: PendingAssessmentTransaction, record: AssessmentRecord) => {
     const accountAddr = await connectWalletAndVerifyChain();
@@ -109,8 +97,9 @@ export const AssessmentList: React.FC<AssessmentListProps> = ({
     }
 
     const storage = browserStorage();
-    if (storage) clearPendingTransaction(storage, CONTRACT_ADDRESS, pending.hash);
-    setPendingTx(null);
+    if (!storage || !coordinator.complete(pending.hash, storage)) {
+      throw new Error('Validated transaction could not be cleared from the shared coordinator.');
+    }
     await onRefresh();
   };
 
@@ -138,10 +127,19 @@ export const AssessmentList: React.FC<AssessmentListProps> = ({
       setErrorMsg('Deployment not configured. Contract calls are disabled.');
       return;
     }
-    if (pendingTx || initialPending.error) {
+    if (coordinatorState.phase !== 'idle') {
       setErrorMsg('A broadcast transaction is already pending. Resume its existing hash before initiating another write.');
       return;
     }
+
+    const storage = browserStorage();
+    const coordinatorToken = coordinator.acquire('resolve', storage);
+    if (!coordinatorToken || !storage) {
+      const lockState = coordinator.getSnapshot();
+      setErrorMsg(lockState.phase === 'blocked' ? lockState.error : 'Another state-changing transaction already owns the shared write lock.');
+      return;
+    }
+    let hashReturned = false;
 
     try {
       setActionLoadingId(record.assessment_id);
@@ -158,6 +156,7 @@ export const AssessmentList: React.FC<AssessmentListProps> = ({
         args: [BigInt(record.assessment_id)],
         value: BigInt(0),
       });
+      hashReturned = true;
 
       const hashStr = String(hash);
       const pending: PendingAssessmentTransaction = {
@@ -171,13 +170,11 @@ export const AssessmentList: React.FC<AssessmentListProps> = ({
         payload: { assessmentId: record.assessment_id, canonicalKey: record.canonical_key, retryCount: record.retry_count },
       };
       setActiveTxHash(hashStr);
-      setPendingTx(pending);
-      const storage = browserStorage();
-      if (!storage) throw new Error('Browser storage unavailable; refusing to continue without same-hash recovery protection.');
-      savePendingTransaction(storage, pending);
+      coordinator.promote(coordinatorToken, pending, storage);
       setStatusMsg(`Transaction broadcasted. Waiting for block receipt...`);
       await reconcileAssessment(pending, record);
     } catch (err: unknown) {
+      if (!hashReturned) coordinator.release(coordinatorToken);
       const msg = err instanceof Error ? err.message : 'Resolve execution failed.';
       setErrorMsg(msg);
     } finally {
@@ -195,10 +192,19 @@ export const AssessmentList: React.FC<AssessmentListProps> = ({
       setErrorMsg('Deployment not configured. Contract calls are disabled.');
       return;
     }
-    if (pendingTx || initialPending.error) {
+    if (coordinatorState.phase !== 'idle') {
       setErrorMsg('A broadcast transaction is already pending. Resume its existing hash before initiating another write.');
       return;
     }
+
+    const storage = browserStorage();
+    const coordinatorToken = coordinator.acquire('retry', storage);
+    if (!coordinatorToken || !storage) {
+      const lockState = coordinator.getSnapshot();
+      setErrorMsg(lockState.phase === 'blocked' ? lockState.error : 'Another state-changing transaction already owns the shared write lock.');
+      return;
+    }
+    let hashReturned = false;
 
     try {
       setActionLoadingId(record.assessment_id);
@@ -215,6 +221,7 @@ export const AssessmentList: React.FC<AssessmentListProps> = ({
         args: [BigInt(record.assessment_id)],
         value: BigInt(0),
       });
+      hashReturned = true;
 
       const hashStr = String(hash);
       const pending: PendingAssessmentTransaction = {
@@ -228,13 +235,11 @@ export const AssessmentList: React.FC<AssessmentListProps> = ({
         payload: { assessmentId: record.assessment_id, canonicalKey: record.canonical_key, retryCount: record.retry_count },
       };
       setActiveTxHash(hashStr);
-      setPendingTx(pending);
-      const storage = browserStorage();
-      if (!storage) throw new Error('Browser storage unavailable; refusing to continue without same-hash recovery protection.');
-      savePendingTransaction(storage, pending);
+      coordinator.promote(coordinatorToken, pending, storage);
       setStatusMsg(`Transaction broadcasted. Waiting for block receipt...`);
       await reconcileAssessment(pending, record);
     } catch (err: unknown) {
+      if (!hashReturned) coordinator.release(coordinatorToken);
       const msg = err instanceof Error ? err.message : 'Retry execution failed.';
       setErrorMsg(msg);
     } finally {
@@ -350,6 +355,12 @@ export const AssessmentList: React.FC<AssessmentListProps> = ({
         </div>
       )}
 
+      {coordinatorError && !errorMsg && (
+        <div className="p-3 bg-rose-950/50 border border-rose-500/30 rounded-xl text-rose-300 text-xs font-mono">
+          Shared transaction coordinator blocked: {coordinatorError}
+        </div>
+      )}
+
       {pendingTx && (
         <div className="p-3 bg-amber-950/40 border border-amber-500/30 rounded-xl text-amber-200 text-xs font-mono flex items-center justify-between gap-3">
           <span>Pending {pendingTx.action} transaction: {pendingTx.hash}. All new writes are locked; resume the same hash from its matching action.</span>
@@ -437,7 +448,7 @@ export const AssessmentList: React.FC<AssessmentListProps> = ({
 
                         {!isMatchingPending && rec.status === 1 && (
                           <button
-                            disabled={!isConfigured || isLoading || pendingTx !== null || initialPending.error !== null}
+                            disabled={!isConfigured || isLoading || coordinatorState.phase !== 'idle'}
                             onClick={(e) => handleResolve(e, rec)}
                             className="bg-cyan-600 hover:bg-cyan-500 text-white px-2.5 py-1 rounded-lg text-[11px] font-semibold flex items-center gap-1 transition-all disabled:opacity-40"
                           >
@@ -448,7 +459,7 @@ export const AssessmentList: React.FC<AssessmentListProps> = ({
 
                         {!isMatchingPending && rec.status === 5 && rec.retry_count < 2 && (
                           <button
-                            disabled={!isConfigured || isLoading || pendingTx !== null || initialPending.error !== null}
+                            disabled={!isConfigured || isLoading || coordinatorState.phase !== 'idle'}
                             onClick={(e) => handleRetry(e, rec)}
                             className="bg-purple-600 hover:bg-purple-500 text-white px-2.5 py-1 rounded-lg text-[11px] font-semibold flex items-center gap-1 transition-all disabled:opacity-40"
                           >

@@ -18,32 +18,19 @@ import {
 import { waitForFinalizedTransaction } from '@/lib/finality';
 import {
   browserStorage,
-  clearPendingTransaction,
-  loadPendingTransaction,
   pendingTransactionTimestamp,
-  savePendingTransaction,
   type PendingRequestTransaction,
-  type PendingTransaction,
 } from '@/lib/pendingTransaction';
+import { useTransactionCoordinator } from '@/lib/transactionCoordinator';
 
 interface RequestAssessmentFormProps {
   onTransactionSuccess: () => Promise<void>;
 }
 
-function loadInitialPending(): { pending: PendingTransaction | null; error: string | null } {
-  const storage = browserStorage();
-  if (!storage || !isContractConfigured()) return { pending: null, error: null };
-  try {
-    return { pending: loadPendingTransaction(storage, CONTRACT_ADDRESS), error: null };
-  } catch (error: unknown) {
-    return { pending: null, error: error instanceof Error ? error.message : String(error) };
-  }
-}
-
 export const RequestAssessmentForm: React.FC<RequestAssessmentFormProps> = ({
   onTransactionSuccess,
 }) => {
-  const [initialPending] = useState(loadInitialPending);
+  const { coordinator, state: coordinatorState } = useTransactionCoordinator();
   const [artifactKind, setArtifactKind] = useState<ArtifactKind>('GITHUB_REPO');
   const [namespace, setNamespace] = useState('');
   const [name, setName] = useState('');
@@ -51,13 +38,14 @@ export const RequestAssessmentForm: React.FC<RequestAssessmentFormProps> = ({
   const [useProfile, setUseProfile] = useState<UseProfile>('COMMERCIAL_INFERENCE');
 
   const [loading, setLoading] = useState(false);
-  const [txHash, setTxHash] = useState<string | null>(initialPending.pending?.action === 'request' ? initialPending.pending.hash : null);
-  const [statusMsg, setStatusMsg] = useState<string | null>(initialPending.pending?.action === 'request' ? 'A previously broadcast request is pending. Resume this exact hash; a new broadcast is locked.' : null);
-  const [errorMsg, setErrorMsg] = useState<string | null>(initialPending.error);
-  const [pendingTx, setPendingTx] = useState<PendingTransaction | null>(initialPending.pending);
+  const [txHash, setTxHash] = useState<string | null>(null);
+  const [statusMsg, setStatusMsg] = useState<string | null>(null);
+  const [errorMsg, setErrorMsg] = useState<string | null>(null);
   const reconciliationController = useRef<AbortController | null>(null);
 
   const isConfigured = isContractConfigured();
+  const pendingTx = coordinatorState.phase === 'pending' ? coordinatorState.transaction : null;
+  const coordinatorError = coordinatorState.phase === 'blocked' ? coordinatorState.error : null;
 
   const reconcileRequest = async (pending: PendingRequestTransaction) => {
     const accountAddr = await connectWalletAndVerifyChain();
@@ -103,8 +91,9 @@ export const RequestAssessmentForm: React.FC<RequestAssessmentFormProps> = ({
     if (rec.policy_version !== 'LS-V1' || rec.policy_hash !== POLICY_HASH) throw new Error('Readback policy version or manifest hash mismatch.');
 
     const storage = browserStorage();
-    if (storage) clearPendingTransaction(storage, CONTRACT_ADDRESS, pending.hash);
-    setPendingTx(null);
+    if (!storage || !coordinator.complete(pending.hash, storage)) {
+      throw new Error('Validated transaction could not be cleared from the shared coordinator.');
+    }
     setStatusMsg('Attestation request successfully registered and verified on Studionet!');
     await onTransactionSuccess();
     setNamespace('');
@@ -136,7 +125,7 @@ export const RequestAssessmentForm: React.FC<RequestAssessmentFormProps> = ({
       return;
     }
 
-    if (pendingTx || initialPending.error) {
+    if (coordinatorState.phase !== 'idle') {
       setErrorMsg('A broadcast transaction is already pending. Resume its existing hash before initiating another write.');
       return;
     }
@@ -160,6 +149,15 @@ export const RequestAssessmentForm: React.FC<RequestAssessmentFormProps> = ({
       return;
     }
 
+    const storage = browserStorage();
+    const coordinatorToken = coordinator.acquire('request', storage);
+    if (!coordinatorToken || !storage) {
+      const lockState = coordinator.getSnapshot();
+      setErrorMsg(lockState.phase === 'blocked' ? lockState.error : 'Another state-changing transaction already owns the shared write lock.');
+      return;
+    }
+    let hashReturned = false;
+
     try {
       setLoading(true);
       setStatusMsg('Connecting Web3 wallet and verifying GenLayer Studionet chain (ID 61999)...');
@@ -175,6 +173,7 @@ export const RequestAssessmentForm: React.FC<RequestAssessmentFormProps> = ({
         args: [artifactKind, trimmedNs, trimmedName, trimmedRev, useProfile],
         value: BigInt(0),
       });
+      hashReturned = true;
 
       const hashStr = String(hash);
       const canonicalKey = `${artifactKind}:${trimmedNs.toLowerCase()}/${trimmedName.toLowerCase()}@${trimmedRev}#${useProfile}#LS-V1`;
@@ -189,13 +188,11 @@ export const RequestAssessmentForm: React.FC<RequestAssessmentFormProps> = ({
         payload: { artifactKind, namespace: trimmedNs, name: trimmedName, revision: trimmedRev, useProfile, canonicalKey },
       };
       setTxHash(hashStr);
-      setPendingTx(pending);
-      const storage = browserStorage();
-      if (!storage) throw new Error('Browser storage unavailable; refusing to continue without same-hash recovery protection.');
-      savePendingTransaction(storage, pending);
+      coordinator.promote(coordinatorToken, pending, storage);
       setStatusMsg('Transaction broadcasted. Waiting for block receipt...');
       await reconcileRequest(pending);
     } catch (err: unknown) {
+      if (!hashReturned) coordinator.release(coordinatorToken);
       const msg = err instanceof Error ? err.message : 'Transaction failed.';
       setErrorMsg(msg);
     } finally {
@@ -240,6 +237,12 @@ export const RequestAssessmentForm: React.FC<RequestAssessmentFormProps> = ({
           <button onClick={() => setErrorMsg(null)} className="text-rose-400 hover:text-white">
             Dismiss
           </button>
+        </div>
+      )}
+
+      {coordinatorError && !errorMsg && (
+        <div className="p-4 bg-rose-950/50 border border-rose-500/30 rounded-xl text-rose-300 text-xs font-mono">
+          Shared transaction coordinator blocked: {coordinatorError}
         </div>
       )}
 
@@ -390,7 +393,7 @@ export const RequestAssessmentForm: React.FC<RequestAssessmentFormProps> = ({
 
         <button
           type="submit"
-          disabled={!isConfigured || loading || pendingTx !== null || initialPending.error !== null}
+          disabled={!isConfigured || loading || coordinatorState.phase !== 'idle'}
           className="w-full bg-gradient-to-r from-cyan-600 to-indigo-600 hover:from-cyan-500 hover:to-indigo-500 text-white py-3 rounded-xl font-semibold text-xs transition-all flex items-center justify-center gap-2 shadow-lg shadow-cyan-600/20 disabled:opacity-40 disabled:cursor-not-allowed"
         >
           {loading ? (

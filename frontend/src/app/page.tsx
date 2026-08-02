@@ -14,6 +14,7 @@ import {
   CONTRACT_ADDRESS,
   parseAssessmentRecord,
 } from '@/lib/genlayer';
+import { TransactionCoordinatorProvider } from '@/lib/transactionCoordinator';
 
 export default function Home() {
   const [activeTab, setActiveTab] = useState<'request' | 'registry' | 'security'>('request');
@@ -66,6 +67,7 @@ export default function Home() {
   }, [isConfigured, fetchAssessmentCountAndRecords]);
 
   return (
+    <TransactionCoordinatorProvider contractAddress={CONTRACT_ADDRESS}>
     <div className="min-h-screen bg-slate-950 text-slate-100 font-sans antialiased selection:bg-cyan-500 selection:text-white">
       <Navbar activeTab={activeTab} setActiveTab={setActiveTab} />
 
@@ -96,5 +98,6 @@ export default function Home() {
 
       <AssessmentDetailModal record={selectedRecord} onClose={() => setSelectedRecord(null)} />
     </div>
+    </TransactionCoordinatorProvider>
   );
 }

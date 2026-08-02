@@ -43,7 +43,7 @@ export interface PendingAssessmentTransaction extends PendingBase {
 
 export type PendingTransaction = PendingRequestTransaction | PendingAssessmentTransaction;
 
-function storageKey(contractAddress: string): string {
+export function pendingTransactionStorageKey(contractAddress: string): string {
   return `${STORAGE_PREFIX}:${contractAddress.toLowerCase()}`;
 }
 
@@ -105,12 +105,12 @@ export function parsePendingTransaction(value: unknown, expectedContract: string
 
 export function savePendingTransaction(storage: StorageLike, pending: PendingTransaction): void {
   const validated = parsePendingTransaction(pending, pending.contractAddress);
-  storage.setItem(storageKey(validated.contractAddress), JSON.stringify(validated));
+  storage.setItem(pendingTransactionStorageKey(validated.contractAddress), JSON.stringify(validated));
 }
 
 export function loadPendingTransaction(storage: StorageLike, contractAddress: string): PendingTransaction | null {
   if (!ADDRESS_RE.test(contractAddress)) return null;
-  const raw = storage.getItem(storageKey(contractAddress));
+  const raw = storage.getItem(pendingTransactionStorageKey(contractAddress));
   if (raw === null) return null;
   try {
     return parsePendingTransaction(JSON.parse(raw) as unknown, contractAddress);
@@ -123,7 +123,7 @@ export function loadPendingTransaction(storage: StorageLike, contractAddress: st
 export function clearPendingTransaction(storage: StorageLike, contractAddress: string, expectedHash: string): boolean {
   const pending = loadPendingTransaction(storage, contractAddress);
   if (!pending || pending.hash.toLowerCase() !== expectedHash.toLowerCase()) return false;
-  storage.removeItem(storageKey(contractAddress));
+  storage.removeItem(pendingTransactionStorageKey(contractAddress));
   return true;
 }
 
