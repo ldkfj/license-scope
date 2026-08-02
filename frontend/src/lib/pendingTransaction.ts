@@ -130,3 +130,7 @@ export function clearPendingTransaction(storage: StorageLike, contractAddress: s
 export function browserStorage(): StorageLike | null {
   return typeof window === 'undefined' ? null : window.localStorage;
 }
+
+export function pendingTransactionTimestamp(): number {
+  return Date.now();
+}

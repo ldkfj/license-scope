@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useState } from 'react';
+import React, { useRef, useState } from 'react';
 import { Layers, RefreshCw, Eye, Play, RotateCcw, Search, CheckCircle2, XCircle, HelpCircle, ExternalLink } from 'lucide-react';
 import {
   AssessmentRecord,
@@ -21,6 +21,7 @@ import {
   browserStorage,
   clearPendingTransaction,
   loadPendingTransaction,
+  pendingTransactionTimestamp,
   savePendingTransaction,
   type PendingAssessmentTransaction,
   type PendingTransaction,
@@ -54,6 +55,7 @@ export const AssessmentList: React.FC<AssessmentListProps> = ({
   const [statusMsg, setStatusMsg] = useState<string | null>(initialPending.pending && initialPending.pending.action !== 'request' ? `A previously broadcast ${initialPending.pending.action} for #${initialPending.pending.payload.assessmentId} is pending. Resume this exact hash; new writes are locked.` : null);
   const [errorMsg, setErrorMsg] = useState<string | null>(initialPending.error);
   const [pendingTx, setPendingTx] = useState<PendingTransaction | null>(initialPending.pending);
+  const reconciliationController = useRef<AbortController | null>(null);
 
   const isConfigured = isContractConfigured();
 
@@ -68,11 +70,18 @@ export const AssessmentList: React.FC<AssessmentListProps> = ({
     const client = getClient(accountAddr);
     setActiveTxHash(pending.hash);
     setStatusMsg(`Reconciling existing ${pending.action} hash for #${record.assessment_id}. No new transaction will be broadcast...`);
-    await waitForFinalizedTransaction(
-      client,
-      pending.hash as Parameters<typeof client.waitForTransactionReceipt>[0]['hash'],
-      ({ round, maxRounds }) => setStatusMsg(`Studionet is still processing this same hash (bounded reconciliation ${round}/${maxRounds})...`),
-    );
+    const controller = new AbortController();
+    reconciliationController.current = controller;
+    try {
+      await waitForFinalizedTransaction(
+        client,
+        pending.hash as Parameters<typeof client.waitForTransactionReceipt>[0]['hash'],
+        ({ round, maxRounds }) => setStatusMsg(`Studionet is still processing this same hash (bounded reconciliation ${round}/${maxRounds})...`),
+        { signal: controller.signal },
+      );
+    } finally {
+      if (reconciliationController.current === controller) reconciliationController.current = null;
+    }
     const receipt = await client.getTransaction({
       hash: pending.hash as Parameters<typeof client.getTransaction>[0]['hash'],
     });
@@ -157,7 +166,7 @@ export const AssessmentList: React.FC<AssessmentListProps> = ({
         chainId: 61999,
         hash: hashStr,
         account: accountAddr,
-        createdAt: Date.now(),
+        createdAt: pendingTransactionTimestamp(),
         action: 'resolve',
         payload: { assessmentId: record.assessment_id, canonicalKey: record.canonical_key, retryCount: record.retry_count },
       };
@@ -214,7 +223,7 @@ export const AssessmentList: React.FC<AssessmentListProps> = ({
         chainId: 61999,
         hash: hashStr,
         account: accountAddr,
-        createdAt: Date.now(),
+        createdAt: pendingTransactionTimestamp(),
         action: 'retry',
         payload: { assessmentId: record.assessment_id, canonicalKey: record.canonical_key, retryCount: record.retry_count },
       };
@@ -342,8 +351,13 @@ export const AssessmentList: React.FC<AssessmentListProps> = ({
       )}
 
       {pendingTx && (
-        <div className="p-3 bg-amber-950/40 border border-amber-500/30 rounded-xl text-amber-200 text-xs font-mono">
-          Pending {pendingTx.action} transaction: {pendingTx.hash}. All new writes are locked; resume the same hash from its matching action.
+        <div className="p-3 bg-amber-950/40 border border-amber-500/30 rounded-xl text-amber-200 text-xs font-mono flex items-center justify-between gap-3">
+          <span>Pending {pendingTx.action} transaction: {pendingTx.hash}. All new writes are locked; resume the same hash from its matching action.</span>
+          {actionLoadingId !== null && pendingTx.action !== 'request' && (
+            <button type="button" onClick={() => reconciliationController.current?.abort()} className="shrink-0 px-3 py-2 rounded-lg bg-slate-700 hover:bg-slate-600 text-white">
+              Stop tracking
+            </button>
+          )}
         </div>
       )}
 

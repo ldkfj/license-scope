@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useState } from 'react';
+import React, { useRef, useState } from 'react';
 import { Send, Shield, AlertCircle, CheckCircle2, ExternalLink } from 'lucide-react';
 import {
   ArtifactKind,
@@ -20,6 +20,7 @@ import {
   browserStorage,
   clearPendingTransaction,
   loadPendingTransaction,
+  pendingTransactionTimestamp,
   savePendingTransaction,
   type PendingRequestTransaction,
   type PendingTransaction,
@@ -54,6 +55,7 @@ export const RequestAssessmentForm: React.FC<RequestAssessmentFormProps> = ({
   const [statusMsg, setStatusMsg] = useState<string | null>(initialPending.pending?.action === 'request' ? 'A previously broadcast request is pending. Resume this exact hash; a new broadcast is locked.' : null);
   const [errorMsg, setErrorMsg] = useState<string | null>(initialPending.error);
   const [pendingTx, setPendingTx] = useState<PendingTransaction | null>(initialPending.pending);
+  const reconciliationController = useRef<AbortController | null>(null);
 
   const isConfigured = isContractConfigured();
 
@@ -68,9 +70,15 @@ export const RequestAssessmentForm: React.FC<RequestAssessmentFormProps> = ({
 
     setTxHash(pending.hash);
     setStatusMsg('Reconciling the existing transaction hash. No new transaction will be broadcast...');
-    await waitForFinalizedTransaction(client, hash, ({ round, maxRounds }) => {
-      setStatusMsg(`Studionet is still processing this same hash (bounded reconciliation ${round}/${maxRounds})...`);
-    });
+    const controller = new AbortController();
+    reconciliationController.current = controller;
+    try {
+      await waitForFinalizedTransaction(client, hash, ({ round, maxRounds }) => {
+        setStatusMsg(`Studionet is still processing this same hash (bounded reconciliation ${round}/${maxRounds})...`);
+      }, { signal: controller.signal });
+    } finally {
+      if (reconciliationController.current === controller) reconciliationController.current = null;
+    }
     const receipt = await client.getTransaction({
       hash: pending.hash as Parameters<typeof client.getTransaction>[0]['hash'],
     });
@@ -176,7 +184,7 @@ export const RequestAssessmentForm: React.FC<RequestAssessmentFormProps> = ({
         chainId: 61999,
         hash: hashStr,
         account: accountAddr,
-        createdAt: Date.now(),
+        createdAt: pendingTransactionTimestamp(),
         action: 'request',
         payload: { artifactKind, namespace: trimmedNs, name: trimmedName, revision: trimmedRev, useProfile, canonicalKey },
       };
@@ -265,9 +273,16 @@ export const RequestAssessmentForm: React.FC<RequestAssessmentFormProps> = ({
             Pending {pendingTx.action} transaction: {pendingTx.hash}. New writes are locked until this hash is reconciled.
           </span>
           {pendingTx.action === 'request' && (
-            <button type="button" disabled={loading} onClick={handleResume} className="shrink-0 px-3 py-2 rounded-lg bg-amber-600 hover:bg-amber-500 text-white disabled:opacity-40">
-              Resume existing Tx
-            </button>
+            <div className="shrink-0 flex gap-2">
+              {loading && (
+                <button type="button" onClick={() => reconciliationController.current?.abort()} className="px-3 py-2 rounded-lg bg-slate-700 hover:bg-slate-600 text-white">
+                  Stop tracking
+                </button>
+              )}
+              <button type="button" disabled={loading} onClick={handleResume} className="px-3 py-2 rounded-lg bg-amber-600 hover:bg-amber-500 text-white disabled:opacity-40">
+                Resume existing Tx
+              </button>
+            </div>
           )}
         </div>
       )}
