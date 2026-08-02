@@ -7,8 +7,8 @@
 | Project | LicenseScope |
 | Submission category | `PROJECT` |
 | Checkpoint | PRE_DEPLOY upgrade re-review after live web-response incompatibility |
-| Upgrade-candidate implementation commit | `a055548b3fa56a279ae7376cfcb48445cf80ff9d` |
-| Frontend receipt/finality implementation commit | `a055548b3fa56a279ae7376cfcb48445cf80ff9d` |
+| Upgrade-candidate implementation commit | `e08e92ee4017a823a74bb3a6b22491095df6b682` |
+| Frontend receipt/finality implementation commit | `e08e92ee4017a823a74bb3a6b22491095df6b682` |
 | Contract source | `contracts/license_scope.py` |
 | Upgrade-candidate contract SHA-256 | `8afec2c2ce17e5542c3c5ca2343c8d454de48e27980273b1382fc621e1282890` |
 | Currently deployed contract SHA-256 | `32e9a4b9f9d2e095e1a4504e0beec90ae46fabda1b2bdf9980921a922ee6b3a8` |
@@ -23,7 +23,7 @@
 | Explorer |  |
 | Live web |  |
 
-Anonymous `PRE_DEPLOY` approval was granted for package `0b9b61200b5e2cb88d0e6747d055a34cdedd7a13`, and its contract source was deployed successfully. Live lifecycle testing then found that the deployed source used `gl.nondet.web.get()` while requiring `response.status_code`; two finalized resolution attempts safely returned `UNRESOLVED / SOURCE_MISSING` because Studionet supplied no such attribute and the fail-closed default became `0`. A first repair at `a70dd74e395e71a5e165b085ebb3714125473030` remained incompatible because the exact pinned `py-lib-genlayer-std` response exposes `status`, not `status_code`. Commit `a055548b3fa56a279ae7376cfcb48445cf80ff9d` closes that issue with strict dual-shape status normalization and replaces unbounded frontend reconciliation with bounded, cancellable, persisted same-hash recovery. These source changes invalidate every earlier approval and require a fresh exact-hash `PRE_DEPLOY` review. No upgrade authorization has been granted.
+Anonymous `PRE_DEPLOY` approval was granted for package `0b9b61200b5e2cb88d0e6747d055a34cdedd7a13`, and its contract source was deployed successfully. Live lifecycle testing then found that the deployed source used `gl.nondet.web.get()` while requiring `response.status_code`; two finalized resolution attempts safely returned `UNRESOLVED / SOURCE_MISSING` because Studionet supplied no such attribute and the fail-closed default became `0`. A first repair at `a70dd74e395e71a5e165b085ebb3714125473030` remained incompatible because the exact pinned `py-lib-genlayer-std` response exposes `status`, not `status_code`. Candidate implementation `e08e92ee4017a823a74bb3a6b22491095df6b682` closes that issue with strict dual-shape status normalization and replaces unbounded frontend reconciliation with bounded, user-cancellable, persisted same-hash recovery. These source changes invalidate every earlier approval and require a fresh exact-hash `PRE_DEPLOY` review. No upgrade authorization has been granted.
 
 ## Successful redeployment core evidence
 
@@ -185,7 +185,7 @@ npm audit: 0 vulnerabilities
 
 The frontend tests cover both legacy camel-case and sanitized current-Studionet response shapes; numeric/name and camel/snake contradiction rejection; optional-but-noncontradictory `consensus_data.final`; mandatory non-empty leader receipts; leader execution, decoded result, and GenVM error rejection; replay of the retained finalized-with-error transaction; explicit rejection of non-final `ACCEPTED`; strict record parsing; immutable identity readback; terminal-state invariants; finite same-hash transient reconciliation; permanent-error stop; pre-flight and in-flight cancellation; exact retry exhaustion; versioned pending-hash persistence; hash-matched clearing; and malformed-storage fail-closed behavior. A read-only live replay of the retained hash reached the intended validator branch and was rejected specifically with `Leader execution result rejected: ERROR.`
 
-A detached clean worktree at implementation commit `a055548b3fa56a279ae7376cfcb48445cf80ff9d` reproduced both stacks from lockfiles: a fresh Python 3.13 environment installed and checked all 57 locked packages, passed GenVM lint/validation, 54 direct tests, and the truthful 3-test integration selection skipped; `npm ci` installed 378 frontend packages with zero vulnerabilities, followed by 31 frontend tests, typecheck, lint, production build, and audit all passing.
+A detached clean worktree at implementation commit `e08e92ee4017a823a74bb3a6b22491095df6b682` reproduced both stacks from lockfiles: a fresh Python 3.13 environment installed and checked all 57 locked packages, passed GenVM lint/validation, 54 direct tests, and the truthful 3-test integration selection skipped; `npm ci` installed 378 frontend packages with zero vulnerabilities, followed by 31 frontend tests, typecheck, lint, production build, and audit all passing.
 
 The build detects a protected local `frontend/.env.local`; its content is not part of this evidence and must never be committed or disclosed.
 
@@ -225,7 +225,7 @@ The retained lifecycle rows prove writes, finality, and safe failure/retry behav
 ## Known limitations and pending gates
 
 - The current Studionet deployment is executable and source-verified but cannot complete GitHub evidence evaluation because of the deployed web-response API mismatch.
-- Upgrade candidate `a055548b3fa56a279ae7376cfcb48445cf80ff9d` is not deployed and has no upgrade authorization.
+- Upgrade candidate `e08e92ee4017a823a74bb3a6b22491095df6b682` is not deployed and has no upgrade authorization.
 - Successful verdict, multi-account, upgraded-source parity, Root Slot enforcement, and separate safe-upgrade-rehearsal evidence remain pending.
 - The earlier finalized-with-error transaction remains failure evidence only.
 - No GitHub repository or Vercel deployment exists.

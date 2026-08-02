@@ -37,7 +37,7 @@ The same wallet fills both roles. This concentrates deployment identity and code
 
 | Field | Value |
 |---|---|
-| Implementation commit | `a055548b3fa56a279ae7376cfcb48445cf80ff9d` |
+| Implementation commit | `e08e92ee4017a823a74bb3a6b22491095df6b682` |
 | Candidate contract SHA-256 | `8afec2c2ce17e5542c3c5ca2343c8d454de48e27980273b1382fc621e1282890` |
 | Target contract | `0x8f1e48e52241E1B8b3320b953901ec7eeE481Ac7` |
 | Authorized upgrader if approved | `0x7885536194bbd6e1d0a6ab991ab215cfa9542339` |
