@@ -173,6 +173,7 @@ The secret-free draft manifest, storage compatibility policy, reset recovery pro
 - Custom or unknown terms fail closed to `UNRESOLVED`.
 - Evidence references are contract-derived and revision-bound.
 - Strict bounded parsing rejects malformed enum, boolean, tuple, receipt, and JSON-array shapes.
+- Receipt normalization accepts the current Studionet SDK field variants only when named, snake-case, and numeric representations agree; successful writes still require `FINALIZED`, an allowed consensus result, every leader execution to succeed, and exact contract readback.
 - Retry clears stale terminal fields and increments the retry count exactly once.
 - The upgrader can replace code but cannot directly overwrite a verdict through a business method.
 

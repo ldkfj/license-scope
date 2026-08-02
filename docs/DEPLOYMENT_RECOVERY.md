@@ -87,7 +87,7 @@ The frontend may be configured only after post-deployment acceptance proves the 
 2. **Completed:** Codex format-checked both public addresses for the intended Studionet workflow and recorded that they are the same wallet.
 3. **Completed:** The one-wallet concentration risk is recorded above: key loss can prevent recovery and key compromise can permit code replacement.
 4. **Completed:** Exact source commit and contract source hash are recorded above.
-5. **Pending fresh review:** the failed deployment changed the source and invalidated the earlier PRE_DEPLOY approval. Codex and anonymous co-review must approve the repaired exact revision/evidence package.
+5. **Pending fresh review:** the failed deployment and subsequent receipt-normalization repair invalidated earlier PRE_DEPLOY packages. Codex and anonymous co-review must approve the new exact revision/evidence package.
 6. Immediately before deployment, verify the active wallet identity, Studionet target, constructor upgrader, and source revision.
 7. Ask the user for a separate explicit confirmation to send the deployment transaction.
 

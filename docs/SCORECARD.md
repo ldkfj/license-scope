@@ -35,7 +35,7 @@ LicenseScope is classified as `PROJECT`, not a standalone `INTELLIGENT_CONTRACT`
 
 ## Frontend / UX: 3/5
 
-**Evidence:** The Next.js application connects a browser wallet, enforces chain ID 61999 before writes, calls the contract, waits for finality, fetches the full transaction, validates consensus/execution/leader receipts, performs exact contract readback, and rejects malformed records. With no valid address it displays `Deployment not configured` and disables actions.
+**Evidence:** The Next.js application connects a browser wallet, enforces chain ID 61999 before writes, calls the contract, waits for finality, fetches the full transaction, normalizes current Studionet camel-case/snake-case/numeric receipt variants with contradiction rejection, validates every leader execution, performs exact contract readback, and rejects malformed records. With no valid address it displays `Deployment not configured` and disables actions.
 
 **Inspected:** `frontend/src/lib/genlayer.ts`, `frontend/src/lib/validation.ts`, request/resolve/retry components, `frontend/tests/validation.test.ts`, typecheck/lint/build output.
 

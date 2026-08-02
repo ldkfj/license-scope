@@ -8,6 +8,7 @@
 | Submission category | `PROJECT` |
 | Checkpoint | PRE_DEPLOY repair re-review after failed execution |
 | Source-code commit | `6e9952d0402b9bac6a56806f90717d43c734428f` |
+| Frontend receipt-normalization commit | `248e49db1225d589719709d05056d4295740431f` |
 | Contract source | `contracts/license_scope.py` |
 | Contract source SHA-256 | `32e9a4b9f9d2e095e1a4504e0beec90ae46fabda1b2bdf9980921a922ee6b3a8` |
 | Policy version | `LS-V1` |
@@ -21,7 +22,7 @@
 | Explorer |  |
 | Live web |  |
 
-The canonical anonymous handoff supplies the exact final evidence-package commit. The source-code commit above contains the constructor compatibility repair and regression tests. Accepted deployment/live fields remain blank because the only deployment attempt finalized with a contract execution error.
+The canonical anonymous handoff supplies the exact final evidence-package commit. The source-code commit above contains the constructor compatibility repair and regression tests; the frontend repair commit closes the current-Studionet receipt-shape blocker reported against evidence package `5a651115fed607860ba3b05dd75bb5c544eafce0`. Accepted deployment/live fields remain blank because the only deployment attempt finalized with a contract execution error.
 
 ## Failed deployment evidence
 
@@ -138,7 +139,7 @@ npm --prefix frontend audit --audit-level=high
 Results:
 
 ```text
-Frontend unit behavior: 17 passed
+Frontend unit behavior: 23 passed
 TypeScript: PASS
 ESLint: PASS
 Next.js production build: PASS
@@ -146,7 +147,7 @@ Static route: /
 npm audit: 0 vulnerabilities
 ```
 
-The frontend tests cover fail-closed receipt parsing, top-level and leader errors, contradictory execution fields, unknown status, explicit rejection of non-final `ACCEPTED`, strict record parsing, immutable identity readback, and terminal-state invariants.
+The frontend tests cover both legacy camel-case and sanitized current-Studionet response shapes; numeric/name and camel/snake contradiction rejection; optional-but-noncontradictory `consensus_data.final`; mandatory non-empty leader receipts; leader execution, decoded result, and GenVM error rejection; replay of the retained finalized-with-error transaction; explicit rejection of non-final `ACCEPTED`; strict record parsing; immutable identity readback; and terminal-state invariants. A read-only live replay of the retained hash reached the intended validator branch and was rejected specifically with `Leader execution result rejected: ERROR.`
 
 The build detects a protected local `frontend/.env.local`; its content is not part of this evidence and must never be committed or disclosed.
 
@@ -156,7 +157,7 @@ The build detects a protected local `frontend/.env.local`; its content is not pa
 2. **Consensus list canonicalization — CLOSED.** License IDs, obligations, and evidence references are validated, deduplicated, and sorted before stable comparison and before storage. Regression tests prove permutation/duplicate equivalence while different obligations and evidence still disagree.
 3. **Failed deployment reconciliation — CLOSED FOR RE-REVIEW.** The manifest and this verification document retain the failed hash, distinguish finality from execution success, prohibit the invalid generated address, and require fresh approval plus explicit authorization before redeployment.
 4. **Dependency audit observation — CLOSED.** Lockfile overrides resolve `postcss` to `8.5.18` and `sharp` to `0.35.0`; `npm audit` reports zero vulnerabilities and unit/typecheck/lint/build gates pass.
-5. **Receipt observation — CLOSED.** The standalone validator rejects `ACCEPTED`; only `FINALIZED` may proceed to execution/consensus/leader validation.
+5. **Current Studionet receipt normalization — CLOSED.** Commit `248e49db1225d589719709d05056d4295740431f` accepts current Studio responses without legacy top-level execution fields or `consensus_data.final`, but only after official finality, consistent status/result representations, allowed consensus, and successful non-empty leader receipts. Optional decoded result and GenVM fields must not contradict success. Sanitized success proceeds to readback; the retained failed transaction is rejected on its actual `execution_result: ERROR` rather than on a missing legacy field.
 6. **Integration-fixture observation — CLOSED FOR PRE_DEPLOY PLAN.** The fabricated happy-path SHA was replaced by a verified real immutable CC-BY-NC-4.0 repository revision with exact `BLOCK` assertions. Live execution remains deferred to `POST_DEPLOY_TEST`.
 
 ## Proof matrix
@@ -191,6 +192,6 @@ Live proof cells are intentionally blank until POST_DEPLOY_TEST.
 - V1 supports only public GitHub repositories at immutable commit SHAs.
 - LicenseScope is not legal advice.
 - Root Slot native locking, deployed-code readback, and upgrade redispatch require authorized live rehearsal.
-- The earlier PRE_DEPLOY approval is invalidated by the source repair; fresh Codex and anonymous approval are required for the exact repaired evidence package.
+- Anonymous review returned `CHANGES REQUIRED` for package `5a651115fed607860ba3b05dd75bb5c544eafce0`; the receipt blocker is repaired, but fresh Codex and anonymous approval are required for the new exact evidence package.
 
 No successful deployment, push, Vercel release, or live lifecycle claim is made by this document.
