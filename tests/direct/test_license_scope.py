@@ -8,6 +8,7 @@ from pathlib import Path
 import genlayer
 import pytest
 from genlayer import Address, gl
+from genlayer.gl.nondet.web import Response as PinnedWebResponse
 from genlayer.py.types import u8, u256
 from gltest.direct import wasi_mock
 from gltest.direct.loader import deploy_contract
@@ -20,6 +21,7 @@ from license_scope import (
     STATUS_CONDITIONAL,
     STATUS_UNRESOLVED,
     _normalize_and_validate_decision,
+    _normalize_web_response_status,
     _parse_address,
     _safe_decode_utf8_response_body,
     _stable_decisions_agree,
@@ -91,13 +93,32 @@ class MockVMError:
         self.message = message
 
 
-class MockWebResponse:
-    def __init__(self, status_code: int, body_data: bytes | str):
-        self.status_code = status_code
-        if isinstance(body_data, str):
-            self.body = body_data.encode("utf-8")
-        else:
-            self.body = body_data
+def MockWebResponse(status: int, body_data: bytes | str) -> PinnedWebResponse:
+    body = body_data.encode("utf-8") if isinstance(body_data, str) else body_data
+    return PinnedWebResponse(status=status, headers={}, body=body)
+
+
+def test_web_response_status_normalization_matches_pinned_and_documented_shapes():
+    pinned = MockWebResponse(200, b"ok")
+    documented = type("DocumentedResponse", (), {"status_code": 404, "body": b"missing"})()
+    agreeing = type("DualResponse", (), {"status": 500, "status_code": 500, "body": b"error"})()
+
+    assert _normalize_web_response_status(pinned) == 200
+    assert _normalize_web_response_status(documented) == 404
+    assert _normalize_web_response_status(agreeing) == 500
+
+
+@pytest.mark.parametrize(
+    "response",
+    [
+        type("MissingResponse", (), {"body": b"missing"})(),
+        type("ContradictoryResponse", (), {"status": 200, "status_code": 404, "body": b"bad"})(),
+        type("BooleanStatusResponse", (), {"status": True, "body": b"bad"})(),
+        type("OutOfRangeResponse", (), {"status": 99, "body": b"bad"})(),
+    ],
+)
+def test_web_response_status_normalization_rejects_ambiguous_or_invalid_shapes(response):
+    assert _normalize_web_response_status(response) is None
 
 
 def set_sender(addr: Address):

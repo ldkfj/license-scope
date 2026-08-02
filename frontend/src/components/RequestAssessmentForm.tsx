@@ -16,14 +16,33 @@ import {
   POLICY_HASH,
 } from '@/lib/genlayer';
 import { waitForFinalizedTransaction } from '@/lib/finality';
+import {
+  browserStorage,
+  clearPendingTransaction,
+  loadPendingTransaction,
+  savePendingTransaction,
+  type PendingRequestTransaction,
+  type PendingTransaction,
+} from '@/lib/pendingTransaction';
 
 interface RequestAssessmentFormProps {
   onTransactionSuccess: () => Promise<void>;
 }
 
+function loadInitialPending(): { pending: PendingTransaction | null; error: string | null } {
+  const storage = browserStorage();
+  if (!storage || !isContractConfigured()) return { pending: null, error: null };
+  try {
+    return { pending: loadPendingTransaction(storage, CONTRACT_ADDRESS), error: null };
+  } catch (error: unknown) {
+    return { pending: null, error: error instanceof Error ? error.message : String(error) };
+  }
+}
+
 export const RequestAssessmentForm: React.FC<RequestAssessmentFormProps> = ({
   onTransactionSuccess,
 }) => {
+  const [initialPending] = useState(loadInitialPending);
   const [artifactKind, setArtifactKind] = useState<ArtifactKind>('GITHUB_REPO');
   const [namespace, setNamespace] = useState('');
   const [name, setName] = useState('');
@@ -31,11 +50,72 @@ export const RequestAssessmentForm: React.FC<RequestAssessmentFormProps> = ({
   const [useProfile, setUseProfile] = useState<UseProfile>('COMMERCIAL_INFERENCE');
 
   const [loading, setLoading] = useState(false);
-  const [txHash, setTxHash] = useState<string | null>(null);
-  const [statusMsg, setStatusMsg] = useState<string | null>(null);
-  const [errorMsg, setErrorMsg] = useState<string | null>(null);
+  const [txHash, setTxHash] = useState<string | null>(initialPending.pending?.action === 'request' ? initialPending.pending.hash : null);
+  const [statusMsg, setStatusMsg] = useState<string | null>(initialPending.pending?.action === 'request' ? 'A previously broadcast request is pending. Resume this exact hash; a new broadcast is locked.' : null);
+  const [errorMsg, setErrorMsg] = useState<string | null>(initialPending.error);
+  const [pendingTx, setPendingTx] = useState<PendingTransaction | null>(initialPending.pending);
 
   const isConfigured = isContractConfigured();
+
+  const reconcileRequest = async (pending: PendingRequestTransaction) => {
+    const accountAddr = await connectWalletAndVerifyChain();
+    if (accountAddr.toLowerCase() !== pending.account.toLowerCase()) {
+      throw new Error(`Connect the original submitting wallet ${pending.account} to resume this transaction.`);
+    }
+    const client = getClient(accountAddr);
+    const hash = pending.hash as Parameters<typeof client.waitForTransactionReceipt>[0]['hash'];
+    const { payload } = pending;
+
+    setTxHash(pending.hash);
+    setStatusMsg('Reconciling the existing transaction hash. No new transaction will be broadcast...');
+    await waitForFinalizedTransaction(client, hash, ({ round, maxRounds }) => {
+      setStatusMsg(`Studionet is still processing this same hash (bounded reconciliation ${round}/${maxRounds})...`);
+    });
+    const receipt = await client.getTransaction({
+      hash: pending.hash as Parameters<typeof client.getTransaction>[0]['hash'],
+    });
+
+    const { status: receiptStatus, executionResult, consensusResult } = validateGenLayerReceipt(receipt);
+    setStatusMsg(`Receipt ${receiptStatus}; consensus ${consensusResult}; execution ${executionResult}. Verifying exact contract record readback...`);
+    const rawRecord = await client.readContract({
+      address: CONTRACT_ADDRESS as `0x${string}`,
+      functionName: 'get_assessment_by_key',
+      args: [payload.canonicalKey],
+    });
+    const rec = parseAssessmentRecord(rawRecord);
+
+    if (rec.canonical_key !== payload.canonicalKey) throw new Error(`Readback canonical key mismatch: expected ${payload.canonicalKey}, got ${rec.canonical_key}.`);
+    if (rec.artifact_kind !== payload.artifactKind || rec.use_profile !== payload.useProfile) throw new Error('Readback artifact kind or use profile mismatch.');
+    if (rec.namespace.toLowerCase() !== payload.namespace.toLowerCase() || rec.name.toLowerCase() !== payload.name.toLowerCase()) throw new Error('Readback namespace or repository name mismatch.');
+    if (rec.revision.toLowerCase() !== payload.revision) throw new Error('Readback commit SHA revision mismatch.');
+    if (rec.requester.toLowerCase() !== pending.account.toLowerCase()) throw new Error(`Readback requester address mismatch: expected ${pending.account}, got ${rec.requester}.`);
+    if (rec.status !== 1 || rec.status_name !== 'PENDING' || rec.verdict !== 'PENDING' || rec.reason_code !== '') throw new Error('Readback status or reason code mismatch for initial PENDING state.');
+    if (rec.subject_match !== 'UNCLEAR' || rec.revision_match !== 'UNCLEAR' || rec.evidence_sufficient !== false) throw new Error('Readback tri-state or evidence sufficiency mismatch for initial PENDING state.');
+    if (rec.license_ids.length !== 0 || rec.obligations.length !== 0 || rec.evidence_references.length !== 0) throw new Error('Readback license, obligation, or evidence references not empty for PENDING state.');
+    if (rec.policy_version !== 'LS-V1' || rec.policy_hash !== POLICY_HASH) throw new Error('Readback policy version or manifest hash mismatch.');
+
+    const storage = browserStorage();
+    if (storage) clearPendingTransaction(storage, CONTRACT_ADDRESS, pending.hash);
+    setPendingTx(null);
+    setStatusMsg('Attestation request successfully registered and verified on Studionet!');
+    await onTransactionSuccess();
+    setNamespace('');
+    setName('');
+    setRevision('');
+  };
+
+  const handleResume = async () => {
+    if (!pendingTx || pendingTx.action !== 'request') return;
+    setErrorMsg(null);
+    try {
+      setLoading(true);
+      await reconcileRequest(pendingTx);
+    } catch (error: unknown) {
+      setErrorMsg(error instanceof Error ? error.message : String(error));
+    } finally {
+      setLoading(false);
+    }
+  };
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -45,6 +125,11 @@ export const RequestAssessmentForm: React.FC<RequestAssessmentFormProps> = ({
 
     if (!isConfigured) {
       setErrorMsg('Deployment not configured. Contract calls are disabled.');
+      return;
+    }
+
+    if (pendingTx || initialPending.error) {
+      setErrorMsg('A broadcast transaction is already pending. Resume its existing hash before initiating another write.');
       return;
     }
 
@@ -84,74 +169,24 @@ export const RequestAssessmentForm: React.FC<RequestAssessmentFormProps> = ({
       });
 
       const hashStr = String(hash);
-      setTxHash(hashStr);
-      setStatusMsg('Transaction broadcasted. Waiting for block receipt...');
-
-      await waitForFinalizedTransaction(
-        client,
-        hash as unknown as Parameters<typeof client.waitForTransactionReceipt>[0]['hash'],
-        ({ round }) => {
-          setStatusMsg(`Studionet is still processing this transaction. Continuing to track the existing hash (reconciliation round ${round})...`);
-        },
-      );
-      const receipt = await client.getTransaction({
-        hash: hash as unknown as Parameters<typeof client.getTransaction>[0]['hash'],
-      });
-
-      const { status: receiptStatus, executionResult, consensusResult } = validateGenLayerReceipt(receipt);
-      setStatusMsg(`Receipt ${receiptStatus}; consensus ${consensusResult}; execution ${executionResult}. Verifying exact contract record readback...`);
-
       const canonicalKey = `${artifactKind}:${trimmedNs.toLowerCase()}/${trimmedName.toLowerCase()}@${trimmedRev}#${useProfile}#LS-V1`;
-
-      const rawRecord = await client.readContract({
-        address: CONTRACT_ADDRESS as `0x${string}`,
-        functionName: 'get_assessment_by_key',
-        args: [canonicalKey],
-      });
-
-      const rec = parseAssessmentRecord(rawRecord);
-
-      if (rec.canonical_key !== canonicalKey) {
-        throw new Error(`Readback canonical key mismatch: expected ${canonicalKey}, got ${rec.canonical_key}.`);
-      }
-
-      if (rec.artifact_kind !== artifactKind || rec.use_profile !== useProfile) {
-        throw new Error('Readback artifact kind or use profile mismatch.');
-      }
-
-      if (rec.namespace.toLowerCase() !== trimmedNs.toLowerCase() || rec.name.toLowerCase() !== trimmedName.toLowerCase()) {
-        throw new Error('Readback namespace or repository name mismatch.');
-      }
-
-      if (rec.revision.toLowerCase() !== trimmedRev) {
-        throw new Error('Readback commit SHA revision mismatch.');
-      }
-
-      if (rec.requester.toLowerCase() !== accountAddr.toLowerCase()) {
-        throw new Error(`Readback requester address mismatch: expected ${accountAddr}, got ${rec.requester}.`);
-      }
-
-      if (rec.status !== 1 || rec.status_name !== 'PENDING' || rec.verdict !== 'PENDING' || rec.reason_code !== '') {
-        throw new Error('Readback status or reason code mismatch for initial PENDING state.');
-      }
-
-      if (rec.subject_match !== 'UNCLEAR' || rec.revision_match !== 'UNCLEAR' || rec.evidence_sufficient !== false) {
-        throw new Error('Readback tri-state or evidence sufficiency mismatch for initial PENDING state.');
-      }
-
-      if (rec.license_ids.length !== 0 || rec.obligations.length !== 0 || rec.evidence_references.length !== 0) {
-        throw new Error('Readback license, obligation, or evidence references not empty for PENDING state.');
-      }
-
-      if (rec.policy_version !== 'LS-V1' || rec.policy_hash !== POLICY_HASH) {
-        throw new Error('Readback policy version or manifest hash mismatch.');
-      }
-
-      setStatusMsg('Attestation request successfully registered and verified on Studionet!');
-      await onTransactionSuccess();
-      setNamespace('');
-      setName('');
-      setRevision('');
+      const pending: PendingRequestTransaction = {
+        version: 1,
+        contractAddress: CONTRACT_ADDRESS,
+        chainId: 61999,
+        hash: hashStr,
+        account: accountAddr,
+        createdAt: Date.now(),
+        action: 'request',
+        payload: { artifactKind, namespace: trimmedNs, name: trimmedName, revision: trimmedRev, useProfile, canonicalKey },
+      };
+      setTxHash(hashStr);
+      setPendingTx(pending);
+      const storage = browserStorage();
+      if (!storage) throw new Error('Browser storage unavailable; refusing to continue without same-hash recovery protection.');
+      savePendingTransaction(storage, pending);
+      setStatusMsg('Transaction broadcasted. Waiting for block receipt...');
+      await reconcileRequest(pending);
     } catch (err: unknown) {
       const msg = err instanceof Error ? err.message : 'Transaction failed.';
       setErrorMsg(msg);
@@ -221,6 +256,19 @@ export const RequestAssessmentForm: React.FC<RequestAssessmentFormProps> = ({
               </div>
             )}
           </div>
+        </div>
+      )}
+
+      {pendingTx && (
+        <div className="p-4 bg-amber-950/40 border border-amber-500/30 rounded-xl text-amber-200 text-xs font-mono flex items-center justify-between gap-3">
+          <span>
+            Pending {pendingTx.action} transaction: {pendingTx.hash}. New writes are locked until this hash is reconciled.
+          </span>
+          {pendingTx.action === 'request' && (
+            <button type="button" disabled={loading} onClick={handleResume} className="shrink-0 px-3 py-2 rounded-lg bg-amber-600 hover:bg-amber-500 text-white disabled:opacity-40">
+              Resume existing Tx
+            </button>
+          )}
         </div>
       )}
 
@@ -327,7 +375,7 @@ export const RequestAssessmentForm: React.FC<RequestAssessmentFormProps> = ({
 
         <button
           type="submit"
-          disabled={!isConfigured || loading}
+          disabled={!isConfigured || loading || pendingTx !== null || initialPending.error !== null}
           className="w-full bg-gradient-to-r from-cyan-600 to-indigo-600 hover:from-cyan-500 hover:to-indigo-500 text-white py-3 rounded-xl font-semibold text-xs transition-all flex items-center justify-center gap-2 shadow-lg shadow-cyan-600/20 disabled:opacity-40 disabled:cursor-not-allowed"
         >
           {loading ? (

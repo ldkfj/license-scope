@@ -637,6 +637,27 @@ def _stable_decisions_agree(leader: dict, validator: dict) -> bool:
     return True
 
 
+def _normalize_web_response_status(response) -> int | None:
+    """Accept the pinned runtime and documented response shapes, strictly.
+
+    py-lib-genlayer-std pinned by this contract exposes ``status`` while the
+    current public documentation describes ``status_code``.  A response is
+    usable only when every present representation is an integer HTTP status
+    and the representations agree.
+    """
+    values = []
+    for field in ("status", "status_code"):
+        if hasattr(response, field):
+            value = getattr(response, field)
+            if type(value) is not int or value < 100 or value > 599:
+                return None
+            values.append(value)
+
+    if not values or any(value != values[0] for value in values[1:]):
+        return None
+    return values[0]
+
+
 def _fetch_and_evaluate_evidence(
     kind: str, ns: str, name: str, rev: str, profile: str
 ) -> dict:
@@ -664,7 +685,20 @@ def _fetch_and_evaluate_evidence(
     try:
         total_requests += 1
         resp = gl.nondet.web.request(commit_url, method="GET")
-        status_code = getattr(resp, "status_code", 0)
+        status_code = _normalize_web_response_status(resp)
+        if status_code is None:
+            raw_res = {
+                "status_code": 5,
+                "reason_code": "MALFORMED_SOURCE",
+                "license_ids": [],
+                "obligations": [],
+                "subject_match": "UNCLEAR",
+                "revision_match": "UNCLEAR",
+                "evidence_sufficient": False,
+                "evidence_references": [],
+                "explanation": "GitHub commit response status was missing, invalid, or contradictory.",
+            }
+            return _normalize_and_validate_decision(raw_res, kind, ns, name, rev, profile)
         if status_code == 200:
             txt = _safe_decode_utf8_response_body(resp)
             if txt is None:
@@ -787,7 +821,7 @@ def _fetch_and_evaluate_evidence(
         try:
             total_requests += 1
             resp = gl.nondet.web.request(l_url, method="GET")
-            status_code = getattr(resp, "status_code", 0)
+            status_code = _normalize_web_response_status(resp)
             if status_code == 200:
                 txt = _safe_decode_utf8_response_body(resp)
                 if txt and txt.strip():

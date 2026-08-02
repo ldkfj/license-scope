@@ -17,6 +17,14 @@ import {
   MatchTriState,
 } from '@/lib/genlayer';
 import { waitForFinalizedTransaction } from '@/lib/finality';
+import {
+  browserStorage,
+  clearPendingTransaction,
+  loadPendingTransaction,
+  savePendingTransaction,
+  type PendingAssessmentTransaction,
+  type PendingTransaction,
+} from '@/lib/pendingTransaction';
 
 interface AssessmentListProps {
   assessments: AssessmentRecord[];
@@ -24,18 +32,92 @@ interface AssessmentListProps {
   onRefresh: () => Promise<void>;
 }
 
+function loadInitialPending(): { pending: PendingTransaction | null; error: string | null } {
+  const storage = browserStorage();
+  if (!storage || !isContractConfigured()) return { pending: null, error: null };
+  try {
+    return { pending: loadPendingTransaction(storage, CONTRACT_ADDRESS), error: null };
+  } catch (error: unknown) {
+    return { pending: null, error: error instanceof Error ? error.message : String(error) };
+  }
+}
+
 export const AssessmentList: React.FC<AssessmentListProps> = ({
   assessments,
   onSelectRecord,
   onRefresh,
 }) => {
+  const [initialPending] = useState(loadInitialPending);
   const [searchTerm, setSearchTerm] = useState('');
   const [actionLoadingId, setActionLoadingId] = useState<number | null>(null);
-  const [activeTxHash, setActiveTxHash] = useState<string | null>(null);
-  const [statusMsg, setStatusMsg] = useState<string | null>(null);
-  const [errorMsg, setErrorMsg] = useState<string | null>(null);
+  const [activeTxHash, setActiveTxHash] = useState<string | null>(initialPending.pending && initialPending.pending.action !== 'request' ? initialPending.pending.hash : null);
+  const [statusMsg, setStatusMsg] = useState<string | null>(initialPending.pending && initialPending.pending.action !== 'request' ? `A previously broadcast ${initialPending.pending.action} for #${initialPending.pending.payload.assessmentId} is pending. Resume this exact hash; new writes are locked.` : null);
+  const [errorMsg, setErrorMsg] = useState<string | null>(initialPending.error);
+  const [pendingTx, setPendingTx] = useState<PendingTransaction | null>(initialPending.pending);
 
   const isConfigured = isContractConfigured();
+
+  const reconcileAssessment = async (pending: PendingAssessmentTransaction, record: AssessmentRecord) => {
+    const accountAddr = await connectWalletAndVerifyChain();
+    if (accountAddr.toLowerCase() !== pending.account.toLowerCase()) {
+      throw new Error(`Connect the original submitting wallet ${pending.account} to resume this transaction.`);
+    }
+    if (record.assessment_id !== pending.payload.assessmentId || record.canonical_key !== pending.payload.canonicalKey) {
+      throw new Error('Pending transaction does not match this assessment record.');
+    }
+    const client = getClient(accountAddr);
+    setActiveTxHash(pending.hash);
+    setStatusMsg(`Reconciling existing ${pending.action} hash for #${record.assessment_id}. No new transaction will be broadcast...`);
+    await waitForFinalizedTransaction(
+      client,
+      pending.hash as Parameters<typeof client.waitForTransactionReceipt>[0]['hash'],
+      ({ round, maxRounds }) => setStatusMsg(`Studionet is still processing this same hash (bounded reconciliation ${round}/${maxRounds})...`),
+    );
+    const receipt = await client.getTransaction({
+      hash: pending.hash as Parameters<typeof client.getTransaction>[0]['hash'],
+    });
+    const { status: receiptStatus, executionResult, consensusResult } = validateGenLayerReceipt(receipt);
+    setStatusMsg(`Receipt ${receiptStatus}; consensus ${consensusResult}; execution ${executionResult}. Verifying contract readback...`);
+    const rawReadback = await client.readContract({
+      address: CONTRACT_ADDRESS as `0x${string}`,
+      functionName: 'get_assessment',
+      args: [BigInt(record.assessment_id)],
+    });
+    const rec = parseAssessmentRecord(rawReadback);
+    assertSameAssessmentIdentity(record, rec);
+
+    if (pending.action === 'resolve') {
+      if (rec.retry_count !== pending.payload.retryCount) throw new Error(`Resolve unexpectedly changed retry_count from ${pending.payload.retryCount} to ${rec.retry_count}.`);
+      assertTerminalRecord(rec);
+      setStatusMsg(`Resolution finalized! Verdict: ${rec.status_name} (${rec.reason_code})`);
+    } else {
+      if (rec.status !== 1 || rec.status_name !== 'PENDING' || rec.verdict !== 'PENDING' || rec.reason_code !== '') throw new Error('Retry atomic reset failed: status expected PENDING (1) with empty reason code.');
+      if (rec.subject_match !== 'UNCLEAR' || rec.revision_match !== 'UNCLEAR' || rec.evidence_sufficient !== false) throw new Error('Retry atomic reset failed: match or evidence fields retained terminal values.');
+      if (rec.license_ids.length !== 0 || rec.obligations.length !== 0 || rec.evidence_references.length !== 0) throw new Error('Retry atomic reset failed: license, obligation, or evidence arrays retained terminal values.');
+      if (rec.retry_count !== pending.payload.retryCount + 1) throw new Error(`Retry count verification failed: expected ${pending.payload.retryCount + 1}, got ${rec.retry_count}.`);
+      if (rec.explanation !== 'Assessment retry queued, awaiting leader-validator consensus resolution.') throw new Error('Retry readback explanation did not match the contract PENDING reset message.');
+      setStatusMsg('Retry finalized! Assessment reset to PENDING.');
+    }
+
+    const storage = browserStorage();
+    if (storage) clearPendingTransaction(storage, CONTRACT_ADDRESS, pending.hash);
+    setPendingTx(null);
+    await onRefresh();
+  };
+
+  const resumePendingAssessment = async (e: React.MouseEvent, record: AssessmentRecord) => {
+    e.stopPropagation();
+    if (!pendingTx || pendingTx.action === 'request') return;
+    setErrorMsg(null);
+    try {
+      setActionLoadingId(record.assessment_id);
+      await reconcileAssessment(pendingTx, record);
+    } catch (error: unknown) {
+      setErrorMsg(error instanceof Error ? error.message : String(error));
+    } finally {
+      setActionLoadingId(null);
+    }
+  };
 
   const handleResolve = async (e: React.MouseEvent, record: AssessmentRecord) => {
     e.stopPropagation();
@@ -45,6 +127,10 @@ export const AssessmentList: React.FC<AssessmentListProps> = ({
 
     if (!isConfigured) {
       setErrorMsg('Deployment not configured. Contract calls are disabled.');
+      return;
+    }
+    if (pendingTx || initialPending.error) {
+      setErrorMsg('A broadcast transaction is already pending. Resume its existing hash before initiating another write.');
       return;
     }
 
@@ -65,39 +151,23 @@ export const AssessmentList: React.FC<AssessmentListProps> = ({
       });
 
       const hashStr = String(hash);
+      const pending: PendingAssessmentTransaction = {
+        version: 1,
+        contractAddress: CONTRACT_ADDRESS,
+        chainId: 61999,
+        hash: hashStr,
+        account: accountAddr,
+        createdAt: Date.now(),
+        action: 'resolve',
+        payload: { assessmentId: record.assessment_id, canonicalKey: record.canonical_key, retryCount: record.retry_count },
+      };
       setActiveTxHash(hashStr);
+      setPendingTx(pending);
+      const storage = browserStorage();
+      if (!storage) throw new Error('Browser storage unavailable; refusing to continue without same-hash recovery protection.');
+      savePendingTransaction(storage, pending);
       setStatusMsg(`Transaction broadcasted. Waiting for block receipt...`);
-
-      await waitForFinalizedTransaction(
-        client,
-        hash as unknown as Parameters<typeof client.waitForTransactionReceipt>[0]['hash'],
-        ({ round }) => {
-          setStatusMsg(`Studionet is still processing resolve #${record.assessment_id}. Continuing to track the existing hash (reconciliation round ${round})...`);
-        },
-      );
-      const receipt = await client.getTransaction({
-        hash: hash as unknown as Parameters<typeof client.getTransaction>[0]['hash'],
-      });
-
-      const { status: receiptStatus, executionResult, consensusResult } = validateGenLayerReceipt(receipt);
-      setStatusMsg(`Receipt ${receiptStatus}; consensus ${consensusResult}; execution ${executionResult}. Verifying contract readback...`);
-
-      const rawReadback = await client.readContract({
-        address: CONTRACT_ADDRESS as `0x${string}`,
-        functionName: 'get_assessment',
-        args: [BigInt(record.assessment_id)],
-      });
-
-      const rec = parseAssessmentRecord(rawReadback);
-
-      assertSameAssessmentIdentity(record, rec);
-      if (rec.retry_count !== record.retry_count) {
-        throw new Error(`Resolve unexpectedly changed retry_count from ${record.retry_count} to ${rec.retry_count}.`);
-      }
-      assertTerminalRecord(rec);
-
-      setStatusMsg(`Resolution finalized! Verdict: ${rec.status_name} (${rec.reason_code})`);
-      await onRefresh();
+      await reconcileAssessment(pending, record);
     } catch (err: unknown) {
       const msg = err instanceof Error ? err.message : 'Resolve execution failed.';
       setErrorMsg(msg);
@@ -114,6 +184,10 @@ export const AssessmentList: React.FC<AssessmentListProps> = ({
 
     if (!isConfigured) {
       setErrorMsg('Deployment not configured. Contract calls are disabled.');
+      return;
+    }
+    if (pendingTx || initialPending.error) {
+      setErrorMsg('A broadcast transaction is already pending. Resume its existing hash before initiating another write.');
       return;
     }
 
@@ -134,54 +208,23 @@ export const AssessmentList: React.FC<AssessmentListProps> = ({
       });
 
       const hashStr = String(hash);
+      const pending: PendingAssessmentTransaction = {
+        version: 1,
+        contractAddress: CONTRACT_ADDRESS,
+        chainId: 61999,
+        hash: hashStr,
+        account: accountAddr,
+        createdAt: Date.now(),
+        action: 'retry',
+        payload: { assessmentId: record.assessment_id, canonicalKey: record.canonical_key, retryCount: record.retry_count },
+      };
       setActiveTxHash(hashStr);
+      setPendingTx(pending);
+      const storage = browserStorage();
+      if (!storage) throw new Error('Browser storage unavailable; refusing to continue without same-hash recovery protection.');
+      savePendingTransaction(storage, pending);
       setStatusMsg(`Transaction broadcasted. Waiting for block receipt...`);
-
-      await waitForFinalizedTransaction(
-        client,
-        hash as unknown as Parameters<typeof client.waitForTransactionReceipt>[0]['hash'],
-        ({ round }) => {
-          setStatusMsg(`Studionet is still processing retry #${record.assessment_id}. Continuing to track the existing hash (reconciliation round ${round})...`);
-        },
-      );
-      const receipt = await client.getTransaction({
-        hash: hash as unknown as Parameters<typeof client.getTransaction>[0]['hash'],
-      });
-
-      const { status: receiptStatus, executionResult, consensusResult } = validateGenLayerReceipt(receipt);
-      setStatusMsg(`Receipt ${receiptStatus}; consensus ${consensusResult}; execution ${executionResult}. Verifying atomic reset readback...`);
-
-      const rawReadback = await client.readContract({
-        address: CONTRACT_ADDRESS as `0x${string}`,
-        functionName: 'get_assessment',
-        args: [BigInt(record.assessment_id)],
-      });
-
-      const rec = parseAssessmentRecord(rawReadback);
-
-      assertSameAssessmentIdentity(record, rec);
-
-      if (rec.status !== 1 || rec.status_name !== 'PENDING' || rec.verdict !== 'PENDING' || rec.reason_code !== '') {
-        throw new Error(`Retry atomic reset failed: status expected PENDING (1) with empty reason code.`);
-      }
-
-      if (rec.subject_match !== 'UNCLEAR' || rec.revision_match !== 'UNCLEAR' || rec.evidence_sufficient !== false) {
-        throw new Error('Retry atomic reset failed: match or evidence fields retained terminal values.');
-      }
-
-      if (rec.license_ids.length !== 0 || rec.obligations.length !== 0 || rec.evidence_references.length !== 0) {
-        throw new Error('Retry atomic reset failed: license, obligation, or evidence arrays retained terminal values.');
-      }
-
-      if (rec.retry_count !== record.retry_count + 1) {
-        throw new Error(`Retry count verification failed: expected ${record.retry_count + 1}, got ${rec.retry_count}.`);
-      }
-      if (rec.explanation !== 'Assessment retry queued, awaiting leader-validator consensus resolution.') {
-        throw new Error('Retry readback explanation did not match the contract PENDING reset message.');
-      }
-
-      setStatusMsg('Retry finalized! Assessment reset to PENDING.');
-      await onRefresh();
+      await reconcileAssessment(pending, record);
     } catch (err: unknown) {
       const msg = err instanceof Error ? err.message : 'Retry execution failed.';
       setErrorMsg(msg);
@@ -298,6 +341,12 @@ export const AssessmentList: React.FC<AssessmentListProps> = ({
         </div>
       )}
 
+      {pendingTx && (
+        <div className="p-3 bg-amber-950/40 border border-amber-500/30 rounded-xl text-amber-200 text-xs font-mono">
+          Pending {pendingTx.action} transaction: {pendingTx.hash}. All new writes are locked; resume the same hash from its matching action.
+        </div>
+      )}
+
       {filteredAssessments.length === 0 ? (
         <div className="text-center py-12 bg-slate-950/40 rounded-xl border border-slate-800/80 space-y-2">
           <Layers className="w-8 h-8 text-slate-600 mx-auto" />
@@ -332,6 +381,9 @@ export const AssessmentList: React.FC<AssessmentListProps> = ({
                 };
 
                 const isLoading = actionLoadingId === rec.assessment_id;
+                const isMatchingPending = pendingTx !== null
+                  && pendingTx.action !== 'request'
+                  && pendingTx.payload.assessmentId === rec.assessment_id;
 
                 return (
                   <tr
@@ -358,9 +410,20 @@ export const AssessmentList: React.FC<AssessmentListProps> = ({
                     </td>
                     <td className="py-3 px-4 text-right">
                       <div className="flex items-center justify-end gap-2" onClick={(e) => e.stopPropagation()}>
-                        {rec.status === 1 && (
+                        {isMatchingPending && (
                           <button
                             disabled={!isConfigured || isLoading}
+                            onClick={(e) => resumePendingAssessment(e, rec)}
+                            className="bg-amber-600 hover:bg-amber-500 text-white px-2.5 py-1 rounded-lg text-[11px] font-semibold flex items-center gap-1 transition-all disabled:opacity-40"
+                          >
+                            <RotateCcw className="w-3 h-3" />
+                            Resume Tx
+                          </button>
+                        )}
+
+                        {!isMatchingPending && rec.status === 1 && (
+                          <button
+                            disabled={!isConfigured || isLoading || pendingTx !== null || initialPending.error !== null}
                             onClick={(e) => handleResolve(e, rec)}
                             className="bg-cyan-600 hover:bg-cyan-500 text-white px-2.5 py-1 rounded-lg text-[11px] font-semibold flex items-center gap-1 transition-all disabled:opacity-40"
                           >
@@ -369,9 +432,9 @@ export const AssessmentList: React.FC<AssessmentListProps> = ({
                           </button>
                         )}
 
-                        {rec.status === 5 && rec.retry_count < 2 && (
+                        {!isMatchingPending && rec.status === 5 && rec.retry_count < 2 && (
                           <button
-                            disabled={!isConfigured || isLoading}
+                            disabled={!isConfigured || isLoading || pendingTx !== null || initialPending.error !== null}
                             onClick={(e) => handleRetry(e, rec)}
                             className="bg-purple-600 hover:bg-purple-500 text-white px-2.5 py-1 rounded-lg text-[11px] font-semibold flex items-center gap-1 transition-all disabled:opacity-40"
                           >
