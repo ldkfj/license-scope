@@ -7,8 +7,8 @@
 | Project | LicenseScope |
 | Submission category | `PROJECT` |
 | Checkpoint | PRE_DEPLOY upgrade re-review after live web-response incompatibility |
-| Upgrade-candidate implementation commit | `e08e92ee4017a823a74bb3a6b22491095df6b682` |
-| Frontend receipt/finality implementation commit | `e08e92ee4017a823a74bb3a6b22491095df6b682` |
+| Upgrade-candidate implementation commit | `d0577dbde2e9d4b93f128173607434ecc7aa6149` |
+| Frontend receipt/finality implementation commit | `d0577dbde2e9d4b93f128173607434ecc7aa6149` |
 | Contract source | `contracts/license_scope.py` |
 | Upgrade-candidate contract SHA-256 | `8afec2c2ce17e5542c3c5ca2343c8d454de48e27980273b1382fc621e1282890` |
 | Currently deployed contract SHA-256 | `32e9a4b9f9d2e095e1a4504e0beec90ae46fabda1b2bdf9980921a922ee6b3a8` |
@@ -23,7 +23,7 @@
 | Explorer |  |
 | Live web |  |
 
-Anonymous `PRE_DEPLOY` approval was granted for package `0b9b61200b5e2cb88d0e6747d055a34cdedd7a13`, and its contract source was deployed successfully. Live lifecycle testing then found that the deployed source used `gl.nondet.web.get()` while requiring `response.status_code`; two finalized resolution attempts safely returned `UNRESOLVED / SOURCE_MISSING` because Studionet supplied no such attribute and the fail-closed default became `0`. A first repair at `a70dd74e395e71a5e165b085ebb3714125473030` remained incompatible because the exact pinned `py-lib-genlayer-std` response exposes `status`, not `status_code`. Candidate implementation `e08e92ee4017a823a74bb3a6b22491095df6b682` closes that issue with strict dual-shape status normalization and replaces unbounded frontend reconciliation with bounded, user-cancellable, persisted same-hash recovery. These source changes invalidate every earlier approval and require a fresh exact-hash `PRE_DEPLOY` review. No upgrade authorization has been granted.
+Anonymous `PRE_DEPLOY` approval was granted for package `0b9b61200b5e2cb88d0e6747d055a34cdedd7a13`, and its contract source was deployed successfully. Live lifecycle testing then found that the deployed source used `gl.nondet.web.get()` while requiring `response.status_code`; two finalized resolution attempts safely returned `UNRESOLVED / SOURCE_MISSING` because Studionet supplied no such attribute and the fail-closed default became `0`. A first repair at `a70dd74e395e71a5e165b085ebb3714125473030` remained incompatible because the exact pinned `py-lib-genlayer-std` response exposes `status`, not `status_code`. Candidate implementation `d0577dbde2e9d4b93f128173607434ecc7aa6149` closes that issue with strict dual-shape status normalization, bounded user-cancellable same-hash recovery, and one page-level transaction coordinator shared by every write surface. These source changes invalidate every earlier approval and require a fresh exact-hash `PRE_DEPLOY` review. No upgrade authorization has been granted.
 
 ## Successful redeployment core evidence
 
@@ -55,7 +55,7 @@ The public GitHub commit endpoint independently returned HTTP `200`, so the repe
 - Persistent storage declarations and `AssessmentRecord` layout are unchanged.
 - Existing assessment IDs, canonical keys, policy bindings, statuses, evidence fields, and retry counts require preservation during any authorized upgrade.
 - The navbar exposes an explicit top-right wallet control and live account/network state.
-- Submit, resolve, and retry persist one versioned, contract/account/action-bound hash immediately after broadcast. Reconciliation is limited to three SDK rounds of 20 polls, retries only classified transient failures, supports cancellation, and stops on permanent errors. On exhaustion or reload the UI exposes `Resume existing Tx`; every new write remains locked until the same hash reaches validated finality and exact readback.
+- Submit, resolve, and retry use one coordinator mounted above both Request and Registry surfaces. It takes a synchronous page-wide mutex before wallet connection and before any `writeContract` invocation, then replaces the broadcasting state with one versioned, contract/account/action-bound persisted hash immediately after broadcast. Same-tab subscribers update together; saved and cleared records synchronize to other browser contexts through the contract-specific `storage` event. Reconciliation is limited to three SDK rounds of 20 polls, retries only classified transient failures, supports cancellation, and stops on permanent errors. On exhaustion or reload the UI exposes `Resume existing Tx`; every page write remains locked until the same hash reaches validated finality and exact readback.
 - Registry search accepts `1` and `#1`, and filtered-empty state is distinguished from an empty registry.
 - The currently deployed contract has not been upgraded; deployed-source parity therefore remains bound to the older hash until a separately authorized upgrade succeeds.
 
@@ -175,7 +175,7 @@ npm --prefix frontend audit --audit-level=high
 Results:
 
 ```text
-Frontend unit behavior: 31 passed
+Frontend unit behavior: 35 passed
 TypeScript: PASS
 ESLint: PASS
 Next.js production build: PASS
@@ -183,9 +183,9 @@ Static route: /
 npm audit: 0 vulnerabilities
 ```
 
-The frontend tests cover both legacy camel-case and sanitized current-Studionet response shapes; numeric/name and camel/snake contradiction rejection; optional-but-noncontradictory `consensus_data.final`; mandatory non-empty leader receipts; leader execution, decoded result, and GenVM error rejection; replay of the retained finalized-with-error transaction; explicit rejection of non-final `ACCEPTED`; strict record parsing; immutable identity readback; terminal-state invariants; finite same-hash transient reconciliation; permanent-error stop; pre-flight and in-flight cancellation; exact retry exhaustion; versioned pending-hash persistence; hash-matched clearing; and malformed-storage fail-closed behavior. A read-only live replay of the retained hash reached the intended validator branch and was rejected specifically with `Leader execution result rejected: ERROR.`
+The frontend tests cover both legacy camel-case and sanitized current-Studionet response shapes; numeric/name and camel/snake contradiction rejection; optional-but-noncontradictory `consensus_data.final`; mandatory non-empty leader receipts; leader execution, decoded result, and GenVM error rejection; replay of the retained finalized-with-error transaction; explicit rejection of non-final `ACCEPTED`; strict record parsing; immutable identity readback; terminal-state invariants; finite same-hash transient reconciliation; permanent-error stop; pre-flight and in-flight cancellation; exact retry exhaustion; versioned pending-hash persistence; hash-matched clearing; malformed-storage fail-closed behavior; common-provider page wiring; Request blocking Resolve/Retry before the first await; Resolve blocking Submit; single-write concurrency; shared subscriber updates; and persisted save/clear synchronization across browser contexts. A read-only live replay of the retained hash reached the intended validator branch and was rejected specifically with `Leader execution result rejected: ERROR.`
 
-A detached clean worktree at implementation commit `e08e92ee4017a823a74bb3a6b22491095df6b682` reproduced both stacks from lockfiles: a fresh Python 3.13 environment installed and checked all 57 locked packages, passed GenVM lint/validation, 54 direct tests, and the truthful 3-test integration selection skipped; `npm ci` installed 378 frontend packages with zero vulnerabilities, followed by 31 frontend tests, typecheck, lint, production build, and audit all passing.
+A detached clean worktree at implementation commit `d0577dbde2e9d4b93f128173607434ecc7aa6149` reproduced both stacks from lockfiles: a fresh Python 3.13 environment installed and checked all 57 locked packages, passed GenVM lint/validation, 54 direct tests, and the truthful 3-test integration selection skipped; `npm ci` installed 378 frontend packages with zero vulnerabilities, followed by 35 frontend tests, typecheck, lint, production build, and audit all passing.
 
 The build detects a protected local `frontend/.env.local`; its content is not part of this evidence and must never be committed or disclosed.
 
@@ -225,7 +225,7 @@ The retained lifecycle rows prove writes, finality, and safe failure/retry behav
 ## Known limitations and pending gates
 
 - The current Studionet deployment is executable and source-verified but cannot complete GitHub evidence evaluation because of the deployed web-response API mismatch.
-- Upgrade candidate `e08e92ee4017a823a74bb3a6b22491095df6b682` is not deployed and has no upgrade authorization.
+- Upgrade candidate `d0577dbde2e9d4b93f128173607434ecc7aa6149` is not deployed and has no upgrade authorization.
 - Successful verdict, multi-account, upgraded-source parity, Root Slot enforcement, and separate safe-upgrade-rehearsal evidence remain pending.
 - The earlier finalized-with-error transaction remains failure evidence only.
 - No GitHub repository or Vercel deployment exists.
