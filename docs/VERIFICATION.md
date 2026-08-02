@@ -7,7 +7,7 @@
 | Project | LicenseScope |
 | Submission category | `PROJECT` |
 | Checkpoint | PRE_DEPLOY preparation |
-| Exact Git commit |  |
+| Source-code commit | `ac3d68a21c5da0dfa5e5879ff09a2777230057a9` |
 | Contract source | `contracts/license_scope.py` |
 | Contract source SHA-256 | `81e533a79e14f8edec04096f871ca7112f2e37a2b9045275e88d530abb42f958` |
 | Policy version | `LS-V1` |
@@ -20,7 +20,7 @@
 | Explorer |  |
 | Live web |  |
 
-The exact Git commit is a required PRE_DEPLOY field and must be filled after the local release-candidate commit is created. Deployment/live fields belong to later checkpoints and are intentionally blank.
+The canonical anonymous handoff supplies the exact final evidence-package commit. The source-code commit above fixes the contract, frontend, tests, and reviewer documents before the metadata-only evidence commit. Deployment/live fields belong to later checkpoints and are intentionally blank.
 
 ## Offline command evidence
 
@@ -167,6 +167,6 @@ Live proof cells are intentionally blank until POST_DEPLOY_TEST.
 - V1 supports only public GitHub repositories at immutable commit SHAs.
 - LicenseScope is not legal advice.
 - Root Slot native locking, deployed-code readback, and upgrade redispatch require authorized live rehearsal.
-- PRE_DEPLOY anonymous handoff remains blocked until an exact local release commit is created and Codex issues its verdict for that revision.
+- PRE_DEPLOY anonymous handoff remains blocked until Codex issues its verdict for the final evidence-package commit.
 
 No deployment, push, Vercel release, or live lifecycle claim is made by this document.

@@ -21,7 +21,7 @@ The user selected one public wallet for both deployment and upgrade authority. N
 | Contract source SHA-256 | `81e533a79e14f8edec04096f871ca7112f2e37a2b9045275e88d530abb42f958` |
 | Policy version | `LS-V1` |
 | Policy manifest hash | `sha256:1105b19ea7786bbd5ace24445845997e914e726cd2f80ddf83d8a6f8f8769532` |
-| Exact Git commit |  |
+| Source-code commit | `ac3d68a21c5da0dfa5e5879ff09a2777230057a9` |
 | Deployment wallet public address | `0x7885536194bbd6e1d0a6ab991ab215cfa9542339` |
 | External upgrader public address | `0x7885536194bbd6e1d0a6ab991ab215cfa9542339` |
 | Constructor arguments | `upgrader_address = 0x7885536194bbd6e1d0a6ab991ab215cfa9542339` |

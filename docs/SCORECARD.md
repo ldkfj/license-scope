@@ -51,7 +51,6 @@ Submission recommendation: NOT READY FOR DEPLOYMENT
 
 Current blockers before PRE_DEPLOY anonymous handoff:
 
-1. exact local release commit/source revision;
-2. Codex PRE_DEPLOY verdict for that exact revision and completed checkpoint evidence.
+1. Codex PRE_DEPLOY verdict for the final evidence-package commit and completed checkpoint evidence.
 
 Deployment, GitHub push, Vercel release, live proof, and final scorecard are later checkpoints and do not count as current offline evidence.
