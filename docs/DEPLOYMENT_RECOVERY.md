@@ -6,6 +6,7 @@
 - Checkpoint: `PRE_DEPLOY` upgrade-candidate re-review
 - Redeployment authorization: **CONSUMED** for transaction `0xd28ff503fa44f073ed4f741427a809fa6c1717bb1f05b64901828cb0b71705d5`
 - Current deployment: **FINALIZED with successful execution, but live evidence evaluation is blocked by the deployed web-response API mismatch**
+- Safe upgrade rehearsal: **COMPLETED** on disposable contract `0xF1FF7a9Faa9A9800237e945F97b69Ac837D30193`
 - Main-contract upgrade authorization: **NOT GRANTED**
 
 The user selected one public wallet for both deployment and upgrade authority. No private key, seed phrase, token, credential, or wallet export belongs in this document.
@@ -44,8 +45,11 @@ The same wallet fills both roles. This concentrates deployment identity and code
 | Persistent storage layout change | None |
 | Root Slot upgrade transaction |  |
 | Upgrade authorization | **NOT GRANTED** |
+| Disposable rehearsal contract | `0xF1FF7a9Faa9A9800237e945F97b69Ac837D30193` |
+| Disposable V1 deployment transaction | `0xda26ea0dc925a6b7c740ae2c503b5b6a869ad285ad2840a095e624b79225273a` |
+| Disposable V2 upgrade transaction | `0xca98a65e73c5c377924fc526dd76b7b35388b07e9eb88486f7b4c1d5674505e3` |
 
-The candidate uses `gl.nondet.web.request(url, method="GET")` and strictly normalizes the exact pinned runtime's `response.status` together with the documented `response.status_code` representation. Missing, invalid, boolean, out-of-range, or contradictory status values fail closed. It does not alter persistent fields, record layout, policy version/hash, authorization, state machine, retry limit, or upgrade logic. Fresh Codex and anonymous `PRE_DEPLOY` approval, a separate safe rehearsal, active-wallet verification, and explicit user confirmation are required before the main contract can be upgraded.
+The candidate uses `gl.nondet.web.request(url, method="GET")` and strictly normalizes the exact pinned runtime's `response.status` together with the documented `response.status_code` representation. Missing, invalid, boolean, out-of-range, or contradictory status values fail closed. It does not alter persistent fields, record layout, policy version/hash, authorization, state machine, retry limit, or upgrade logic. The safe rehearsal is complete. Fresh Codex and anonymous approval of the evidence-bearing exact revision, active-wallet verification, and explicit user confirmation are still required before the main contract can be upgraded.
 
 ## Successful redeployment core evidence
 
@@ -57,7 +61,7 @@ The candidate uses `gl.nondet.web.request(url, method="GET")` and strictly norma
 - Transaction-generated and user-reported contract address both equal `0x8f1e48e52241E1B8b3320b953901ec7eeE481Ac7`.
 - Embedded deployment source and live `gen_getContractCode` readback are byte-for-byte equal to the reviewed local contract; SHA-256 is `32e9a4b9f9d2e095e1a4504e0beec90ae46fabda1b2bdf9980921a922ee6b3a8`.
 - Initial readback: `get_assessment_count() == 0`; `get_policy_profile("COMMERCIAL_INFERENCE")` returned `LS-V1`, the reviewed policy hash, `allows_commercial: true`, and supported kind `GITHUB_REPO`.
-- Full lifecycle writes, multi-account behavior, Explorer evidence, and the separate safe-upgrade rehearsal remain pending and are not implied by this core acceptance.
+- Full lifecycle success on the main contract, multi-account application behavior, and Explorer evidence remain pending and are not implied by this core acceptance. The completed disposable rehearsal is recorded separately below and does not authorize the main-contract upgrade.
 
 ## Failed deployment reconciliation
 
@@ -82,7 +86,8 @@ The repaired constructor converts a valid unsigned 160-bit integer to exactly 20
 - An explicit membership guard rejects callers absent from the Root upgrader list.
 - Empty upgrade bytecode is rejected before Root code mutation.
 - Direct-mode tests cover Address and Studio-integer upgrader registration, integer range rejection, authorized byte replacement, unauthorized rejection with no mutation, and empty-payload rejection with no mutation.
-- Native locked Root Slot enforcement, deployed code replacement, and redispatch are marked `VERIFY-AT-STUDIO` and require a disposable rehearsal after authorization.
+- The authorized disposable Studionet rehearsal proved live Root upgrader membership checks, exact deployed code replacement, redispatch to the added V2 view, preserved V1 state, and no mutation after empty or unauthorized calls.
+- Native locked-slot rejection was not isolated independently from the contract's explicit `_check_upgrader` guard because that guard rejects an unauthorized caller before Root code mutation. No stronger native-lock claim is made.
 
 ## Storage compatibility plan
 
@@ -137,16 +142,20 @@ Do not configure the frontend or call deployment accepted until all checks pass:
 
 ## Safe upgrade rehearsal
 
-Use a separate disposable Studionet deployment, never the accepted main contract:
+The authorized rehearsal used separate disposable Studionet contract `0xF1FF7a9Faa9A9800237e945F97b69Ac837D30193`. It must never be reused as the release deployment.
 
-1. deploy the exact V1 source with the selected external upgrader;
-2. verify Root upgrader registration and locked-slot unauthorized rejection;
-3. generate V2 from the exact V1 source with one harmless view-only version method;
-4. submit the upgrade from the authorized upgrader;
-5. require `FINALIZED`, successful execution, code readback, and preserved V1 records;
-6. verify unauthorized and empty-payload attempts do not mutate code;
-7. record transaction/readback evidence;
-8. do not reuse the disposable address as the release deployment.
+| Step | Transaction/readback | Result |
+|---|---|---|
+| Deploy reviewed V1 with external upgrader | `0xda26ea0dc925a6b7c740ae2c503b5b6a869ad285ad2840a095e624b79225273a` | `FINALIZED`, `MAJORITY_AGREE`, leader `SUCCESS`; sender and constructor upgrader both `0x7885536194bbd6e1d0a6ab991ab215cfa9542339` |
+| V1 deployed-source parity | Live code raw SHA-256 `64597a7803dfde1b65644486642363c3034294370915cfbabf57df4162b485c0` | Studio converted LF to CRLF; normalized-LF SHA-256 exactly matched reviewed V1 `8afec2c2ce17e5542c3c5ca2343c8d454de48e27980273b1382fc621e1282890` with no other difference |
+| Create preservation baseline | `0x522c0b28308c29d9ea6a60cb45908ea80cbd79dc5c996cfadbd2a0838d049bb2` | `FINALIZED`, leader `SUCCESS`; assessment `#1` created as `PENDING` for the immutable CoSearch revision |
+| Reject empty upgrade bytes | `0x9a4c15706d50f983c6bc0429c257f25b5d42cfc218ba0e2114453052cefba2e2` | `FINALIZED`, rollback `ERR_EMPTY_UPGRADE_CODE`; V1 code and record unchanged |
+| Reject unauthorized caller before upgrade | `0xd3f0099dcc5c1aa8974c9f2f93ff826449b1b45a8891d9c582bc0d6b4cfa61bd` | Wallet `0xcB6CDbeBa2230b7eE87ae52aD0eF2933a3A0eeca`; `FINALIZED`, rollback `ERR_NOT_UPGRADER`; V1 code and record unchanged |
+| Authorized V2 code replacement | `0xca98a65e73c5c377924fc526dd76b7b35388b07e9eb88486f7b4c1d5674505e3` | `FINALIZED`, `MAJORITY_AGREE`, leader `SUCCESS`; exact LF V2 SHA-256 `b67f24ad29d60b748a0043bf69da0b0cb5d2eda643b5484a73acdace88769281` |
+| V2 redispatch and state preservation | Read-only live calls | `get_rehearsal_version() == "LICENSE_SCOPE_REHEARSAL_V2"`; assessment count remained `1`; every field of V1 record `#1` remained unchanged |
+| Reject unauthorized caller after upgrade | `0x39e6dfeca276469f3373c10078c9fc821740c87c9d105fd0f6e195f60411e904` | Same unauthorized wallet; `FINALIZED`, rollback `ERR_NOT_UPGRADER`; V2 hash, marker, count, and record remained unchanged |
+
+All finalized transactions above recorded `MAJORITY_AGREE` and five `AGREE` votes. Expected rejection transactions finalized with consensus but had leader execution `ERROR` and rollback, so they are failure/no-mutation evidence rather than successful writes. The rehearsal proves the explicit Root-upgrader membership guard and persistence of the Root upgrader list across code replacement. It does not independently bypass that guard to isolate native locked-slot enforcement.
 
 ## Recovery runbook
 

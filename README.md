@@ -86,7 +86,7 @@ UNRESOLVED -> PENDING (bounded retry)
 
 ### Upgradability
 
-The contract is classified `UPGRADABLE`. Its constructor registers a user-selected external wallet in the GenLayer Root Slot upgrader list. The public upgrade method applies an explicit membership guard and rejects empty bytecode. Native Root Slot locking and code redispatch remain `VERIFY-AT-STUDIO` items for the authorized disposable rehearsal described in `docs/DEPLOYMENT_RECOVERY.md`.
+The contract is classified `UPGRADABLE`. Its constructor registers a user-selected external wallet in the GenLayer Root Slot upgrader list. The public upgrade method applies an explicit membership guard and rejects empty bytecode. A disposable Studionet rehearsal verified exact code replacement, V2 redispatch, state preservation, and pre/post-upgrade authorization rejection. Native locked-slot rejection was not independently isolated from the earlier explicit guard; the exact evidence and limitation are recorded in `docs/DEPLOYMENT_RECOVERY.md`.
 
 ## Transaction lifecycle
 
@@ -160,9 +160,9 @@ Current exact results and evidence scope are recorded in `docs/VERIFICATION.md`.
 
 ## Deployment
 
-Release deployment is Studionet-only. The public deployment-wallet and external-upgrader address have been selected, format-checked, and recorded in `docs/DEPLOYMENT_RECOVERY.md`. Deployment remains unauthorized until the corrected exact revision receives fresh anonymous `PRE_DEPLOY` approval and the user separately confirms the deployment transaction immediately before it is sent.
+Release deployment is Studionet-only. The public deployment-wallet and external-upgrader address have been selected, format-checked, and recorded in `docs/DEPLOYMENT_RECOVERY.md`. The main contract already exists, but its candidate upgrade remains unauthorized until the evidence-bearing exact revision receives fresh anonymous approval and the user separately confirms that specific upgrade transaction immediately before it is sent.
 
-The secret-free draft manifest, storage compatibility policy, reset recovery procedures, and live rehearsal requirements are in `docs/DEPLOYMENT_RECOVERY.md`.
+The secret-free manifest, storage compatibility policy, reset recovery procedures, and completed disposable rehearsal evidence are in `docs/DEPLOYMENT_RECOVERY.md`.
 
 ## Security and trust boundaries
 
@@ -184,5 +184,5 @@ The secret-free draft manifest, storage compatibility policy, reset recovery pro
 - Private/authenticated repositories and caller-supplied evidence URLs are unsupported.
 - LicenseScope provides an operational policy decision, not legal advice.
 - The current Studionet contract passed deployment finality, execution, source parity, and state readback, but live testing exposed a deployed web-response API mismatch that safely returns `UNRESOLVED / SOURCE_MISSING`. A reviewed and explicitly authorized upgrade is required before release acceptance.
-- Root Slot lock enforcement, deployed-code readback, and upgrade redispatch require authorized Studionet verification.
+- Disposable deployed-code readback and upgrade redispatch are verified. Native Root locking was not independently isolated from the contract's earlier explicit authorization guard.
 - Availability and semantic quality still depend on public evidence and validator consensus; insufficient or custom evidence resolves safely to `UNRESOLVED`.

@@ -20,10 +20,13 @@
 | Accepted contract address | `0x8f1e48e52241E1B8b3320b953901ec7eeE481Ac7` |
 | Accepted deployment transaction | `0xd28ff503fa44f073ed4f741427a809fa6c1717bb1f05b64901828cb0b71705d5` |
 | Failed deployment transaction | `0x1ad0db6cb3c6e3258a86d9ced30a1b244d1aaf5ffb4218ac2aaef479b990e1a3` |
+| Disposable rehearsal contract | `0xF1FF7a9Faa9A9800237e945F97b69Ac837D30193` |
+| Disposable rehearsal V1 deployment | `0xda26ea0dc925a6b7c740ae2c503b5b6a869ad285ad2840a095e624b79225273a` |
+| Disposable rehearsal V2 upgrade | `0xca98a65e73c5c377924fc526dd76b7b35388b07e9eb88486f7b4c1d5674505e3` |
 | Explorer |  |
 | Live web |  |
 
-Anonymous `PRE_DEPLOY` approval was granted for package `0b9b61200b5e2cb88d0e6747d055a34cdedd7a13`, and its contract source was deployed successfully. Live lifecycle testing then found that the deployed source used `gl.nondet.web.get()` while requiring `response.status_code`; two finalized resolution attempts safely returned `UNRESOLVED / SOURCE_MISSING` because Studionet supplied no such attribute and the fail-closed default became `0`. A first repair at `a70dd74e395e71a5e165b085ebb3714125473030` remained incompatible because the exact pinned `py-lib-genlayer-std` response exposes `status`, not `status_code`. Candidate implementation `d0577dbde2e9d4b93f128173607434ecc7aa6149` closes that issue with strict dual-shape status normalization, bounded user-cancellable same-hash recovery, and one page-level transaction coordinator shared by every write surface. These source changes invalidate every earlier approval and require a fresh exact-hash `PRE_DEPLOY` review. No upgrade authorization has been granted.
+Anonymous `PRE_DEPLOY` approval was granted for package `0b9b61200b5e2cb88d0e6747d055a34cdedd7a13`, and its contract source was deployed successfully. Live lifecycle testing then found that the deployed source used `gl.nondet.web.get()` while requiring `response.status_code`; two finalized resolution attempts safely returned `UNRESOLVED / SOURCE_MISSING` because Studionet supplied no such attribute and the fail-closed default became `0`. A first repair at `a70dd74e395e71a5e165b085ebb3714125473030` remained incompatible because the exact pinned `py-lib-genlayer-std` response exposes `status`, not `status_code`. Candidate implementation `d0577dbde2e9d4b93f128173607434ecc7aa6149` closes that issue with strict dual-shape status normalization, bounded user-cancellable same-hash recovery, and one page-level transaction coordinator shared by every write surface. Exact package `184cf86a651f92aa3bbec9f2a687e1b1b74bd08a` subsequently received fresh anonymous `PRE_DEPLOY` approval. The evidence-only changes that record the completed rehearsal create a new exact revision and therefore require another exact-hash review. No main-contract upgrade authorization has been granted.
 
 ## Successful redeployment core evidence
 
@@ -34,7 +37,7 @@ Anonymous `PRE_DEPLOY` approval was granted for package `0b9b61200b5e2cb88d0e674
 - Transaction-generated address matched `0x8f1e48e52241E1B8b3320b953901ec7eeE481Ac7`.
 - Embedded source and live `gen_getContractCode` output were byte-for-byte equal to the reviewed contract and SHA-256 `32e9a4b9f9d2e095e1a4504e0beec90ae46fabda1b2bdf9980921a922ee6b3a8`.
 - Initial state readback returned assessment count `0` and the reviewed `LS-V1` policy profile/hash.
-- This is core deployment acceptance only; live lifecycle writes, multi-account evidence, Explorer verification, and the safe-upgrade rehearsal remain pending.
+- This is core deployment acceptance only; successful main-contract lifecycle, multi-account application evidence, and Explorer verification remain pending. The disposable safe-upgrade rehearsal is recorded below and grants no authority over the main contract.
 
 ## Live lifecycle finding and retained transactions
 
@@ -58,6 +61,23 @@ The public GitHub commit endpoint independently returned HTTP `200`, so the repe
 - Submit, resolve, and retry use one coordinator mounted above both Request and Registry surfaces. It takes a synchronous page-wide mutex before wallet connection and before any `writeContract` invocation, then replaces the broadcasting state with one versioned, contract/account/action-bound persisted hash immediately after broadcast. Same-tab subscribers update together; saved and cleared records synchronize to other browser contexts through the contract-specific `storage` event. Reconciliation is limited to three SDK rounds of 20 polls, retries only classified transient failures, supports cancellation, and stops on permanent errors. On exhaustion or reload the UI exposes `Resume existing Tx`; every page write remains locked until the same hash reaches validated finality and exact readback.
 - Registry search accepts `1` and `#1`, and filtered-empty state is distinguished from an empty registry.
 - The currently deployed contract has not been upgraded; deployed-source parity therefore remains bound to the older hash until a separately authorized upgrade succeeds.
+
+## Safe upgrade rehearsal evidence
+
+The user authorized a rehearsal only; main contract `0x8f1e48e52241E1B8b3320b953901ec7eeE481Ac7` was not upgraded. Disposable contract `0xF1FF7a9Faa9A9800237e945F97b69Ac837D30193` is prohibited from release use.
+
+| Action | Transaction | Finalized execution/readback |
+|---|---|---|
+| Deploy reviewed V1 | `0xda26ea0dc925a6b7c740ae2c503b5b6a869ad285ad2840a095e624b79225273a` | `MAJORITY_AGREE`; leader `SUCCESS`; sender and constructor upgrader matched `0x7885536194bbd6e1d0a6ab991ab215cfa9542339` |
+| Create V1 preservation record | `0x522c0b28308c29d9ea6a60cb45908ea80cbd79dc5c996cfadbd2a0838d049bb2` | Leader `SUCCESS`; assessment `#1` read back as exact `PENDING` CoSearch record |
+| Empty-payload negative test | `0x9a4c15706d50f983c6bc0429c257f25b5d42cfc218ba0e2114453052cefba2e2` | Leader `ERROR`, rollback `ERR_EMPTY_UPGRADE_CODE`; no code/state mutation |
+| Unauthorized pre-upgrade test | `0xd3f0099dcc5c1aa8974c9f2f93ff826449b1b45a8891d9c582bc0d6b4cfa61bd` | Caller `0xcB6CDbeBa2230b7eE87ae52aD0eF2933a3A0eeca`; rollback `ERR_NOT_UPGRADER`; no mutation |
+| Authorized V2 replacement | `0xca98a65e73c5c377924fc526dd76b7b35388b07e9eb88486f7b4c1d5674505e3` | Leader `SUCCESS`; live source SHA-256 exactly `b67f24ad29d60b748a0043bf69da0b0cb5d2eda643b5484a73acdace88769281` |
+| Unauthorized post-upgrade test | `0x39e6dfeca276469f3373c10078c9fc821740c87c9d105fd0f6e195f60411e904` | Same unauthorized caller; rollback `ERR_NOT_UPGRADER`; V2 code/state unchanged |
+
+Every transaction reached `FINALIZED`, returned `MAJORITY_AGREE`, and recorded five `AGREE` votes. The V1 source retrieved from Studio differed from the reviewed file only by Studio's CRLF conversion: normalized-LF SHA-256 matched candidate `8afec2c2ce17e5542c3c5ca2343c8d454de48e27980273b1382fc621e1282890`. V2 was submitted as the exact LF file bytes, so raw live SHA-256 matched `b67f24ad29d60b748a0043bf69da0b0cb5d2eda643b5484a73acdace88769281`.
+
+Post-upgrade live reads returned `get_rehearsal_version() == "LICENSE_SCOPE_REHEARSAL_V2"`, assessment count `1`, and an unchanged V1 record `#1`, including canonical key, requester, policy binding, `PENDING` status, empty evidence arrays, and retry count `0`. This proves code redispatch, storage compatibility, explicit Root-upgrader membership, and persistence of that membership across replacement. Native locked-slot enforcement was not isolated independently because `_check_upgrader` rejects an unauthorized caller before Root code mutation; no claim beyond the observed guard and no-mutation behavior is made.
 
 ## Failed deployment evidence
 
@@ -140,7 +160,7 @@ Coverage includes:
 - terminal immutability, retry atomic reset, retry limit, and duplicate key rejection;
 - end-to-end `CONDITIONAL` and `BLOCK` outcomes in direct mode.
 
-Direct mode verifies the explicit contract upgrader membership guard and Root code-byte replacement. Native locked Root Slot enforcement and post-upgrade redispatch remain live `VERIFY-AT-STUDIO` items.
+Direct mode verifies the explicit contract upgrader membership guard and Root code-byte replacement. The disposable rehearsal now verifies live code replacement, post-upgrade redispatch, and preserved state. Native locked-slot rejection was not independently isolated from the explicit guard.
 
 ### Integration selection
 
@@ -205,7 +225,7 @@ The build detects a protected local `frontend/.env.local`; its content is not pa
 | Requester creates assessment | Request form + browser wallet | `request_assessment` | Direct pending/duplicate tests; frontend finality/readback tests | `0x9df088...93b73`; assessment #1 `PENDING` readback |
 | Resolver evaluates pending assessment | Registry resolve action | `resolve_assessment` | Direct evidence/consensus/adversarial tests; frontend terminal readback tests | `0x1695ce...e54b5` and `0x15fb12...d4cbf`; both safely `UNRESOLVED / SOURCE_MISSING`, exposing deployed API mismatch |
 | Retry caller resets unresolved record | Registry retry action | `retry_assessment` | Direct atomic-reset/limit tests; frontend PENDING invariant tests | `0xa67eb7...edf2f`; atomic `PENDING`, retry count `1` readback |
-| External upgrader replaces code | Documented operational path | `upgrade` | Direct registration/authorization/no-mutation/empty-code tests |  |
+| External upgrader replaces code | Documented operational path | `upgrade` | Direct registration/authorization/no-mutation/empty-code tests | Disposable rehearsal: `0xca98a65...4505e3`; exact V2 hash, redispatch, preserved state; negative tests `0x9a4c15...fba2e2`, `0xd3f009...fa61bd`, `0x39e6df...11e904` |
 | Reader inspects records/policy | Registry/detail views | contract view methods | Direct view tests; strict frontend parser tests |  |
 
 The retained lifecycle rows prove writes, finality, and safe failure/retry behavior. They do not satisfy the successful verdict branch, multi-account requirement, or upgraded-source parity required at `POST_DEPLOY_TEST`.
@@ -226,12 +246,12 @@ The retained lifecycle rows prove writes, finality, and safe failure/retry behav
 
 - The current Studionet deployment is executable and source-verified but cannot complete GitHub evidence evaluation because of the deployed web-response API mismatch.
 - Upgrade candidate `d0577dbde2e9d4b93f128173607434ecc7aa6149` is not deployed and has no upgrade authorization.
-- Successful verdict, multi-account, upgraded-source parity, Root Slot enforcement, and separate safe-upgrade-rehearsal evidence remain pending.
+- Successful main-contract verdict, multi-account application behavior, main-contract upgraded-source parity, and independently isolated native Root locked-slot enforcement remain pending. The separate safe-upgrade rehearsal is complete.
 - The earlier finalized-with-error transaction remains failure evidence only.
 - No GitHub repository or Vercel deployment exists.
 - V1 supports only public GitHub repositories at immutable commit SHAs.
 - LicenseScope is not legal advice.
-- Root Slot native locking, deployed-code readback, and upgrade redispatch require authorized live rehearsal.
+- Deployed-code readback and upgrade redispatch passed on the disposable rehearsal. Native Root locking was not independently isolated from the contract's earlier explicit authorization guard.
 - Earlier anonymous approval applies only to package `0b9b61200b5e2cb88d0e6747d055a34cdedd7a13` and is invalid for the upgrade candidate; fresh exact-revision approval is required.
 
-No completed live lifecycle, push, Vercel release, or Task-completion claim is made by this document.
+No successful main-contract license-verdict lifecycle, push, Vercel release, or Task-completion claim is made by this document.
