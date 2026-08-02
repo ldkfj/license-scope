@@ -111,7 +111,7 @@ A transaction hash, `ACCEPTED` state, missing execution result, leader error, ma
 
 Prerequisites:
 
-- Python `3.12.x`
+- Python `3.13.x`
 - `uv`
 - Node.js compatible with Next.js 16
 - npm
@@ -160,7 +160,7 @@ Current exact results and evidence scope are recorded in `docs/VERIFICATION.md`.
 
 ## Deployment
 
-Release deployment is Studionet-only. Deployment remains blocked until the user selects the public deployment-wallet and external-upgrader addresses, Codex verifies the intended identity/target, PRE_DEPLOY receives both required approvals, and the user separately confirms the deployment transaction.
+Release deployment is Studionet-only. The public deployment-wallet and external-upgrader address have been selected, format-checked, and recorded in `docs/DEPLOYMENT_RECOVERY.md`. Deployment remains unauthorized until the corrected exact revision receives fresh anonymous `PRE_DEPLOY` approval and the user separately confirms the deployment transaction immediately before it is sent.
 
 The secret-free draft manifest, storage compatibility policy, reset recovery procedures, and live rehearsal requirements are in `docs/DEPLOYMENT_RECOVERY.md`.
 

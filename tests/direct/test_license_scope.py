@@ -1,28 +1,28 @@
 """Direct mode unit and mock integration tests for LicenseScope contract."""
 
-import json
 import hashlib
+import json
+import sys
+from pathlib import Path
+
+import genlayer
 import pytest
 from genlayer import Address, gl
 from genlayer.py.types import u8, u256
-from gltest.direct.vm import VMContext
 from gltest.direct import wasi_mock
-
+from gltest.direct.loader import deploy_contract
+from gltest.direct.sdk_loader import setup_sdk_paths
+from gltest.direct.vm import VMContext
 from license_scope import (
-    Contract,
-    STATUS_PENDING,
-    STATUS_ALLOW,
-    STATUS_CONDITIONAL,
-    STATUS_BLOCK,
-    STATUS_UNRESOLVED,
     CANONICAL_POLICY_MANIFEST,
-    _parse_bool_strict,
-    _validate_consensus_schema,
-    _truncate_utf8_bytes,
-    _safe_decode_utf8_response_body,
-    _check_profile_compatibility,
+    STATUS_ALLOW,
+    STATUS_BLOCK,
+    STATUS_CONDITIONAL,
+    STATUS_UNRESOLVED,
     _normalize_and_validate_decision,
+    _safe_decode_utf8_response_body,
     _stable_decisions_agree,
+    _validate_consensus_schema,
 )
 
 DEPLOYER = Address("0x1111111111111111111111111111111111111111")
@@ -30,6 +30,51 @@ RESOLVER = Address("0x2222222222222222222222222222222222222222")
 OTHER_USER = Address("0x3333333333333333333333333333333333333333")
 
 VALID_SHA = "a1b2c3d4e5f60718293a4b5c6d7e8f9012345678"
+RUNNER_HASH = "1jb45aa8ynh2a9c9xn3b7qqh8sm5q93hwfp7jqmwsfhh8jpz09h6"
+STD_HASH = "11rhn002yfajawsz7fai6mykznbxkxs6l91iskj5cm82c92qhy3v"
+SDK_TREE_SHA256 = "bc2979c4b22cd8ef1363db7031c9d1d2c27184ab950900c731f3e29c261254b2"
+
+
+def Contract(upgrader: Address):
+    """Deploy a fresh class with the official Direct Mode loader."""
+    contract_path = Path("contracts/license_scope.py")
+    setup_sdk_paths(contract_path)
+    from genlayer.py.types import Address as RunnerAddress
+
+    runner_upgrader = RunnerAddress(upgrader.as_bytes)
+    registry = sys.modules.get("genlayer.gl.genvm_contracts")
+    if registry is not None:
+        registry.__dict__["__known_contract__"] = None
+    return deploy_contract(
+        contract_path,
+        wasi_mock.get_vm(),
+        runner_upgrader,
+    )
+
+
+def test_contract_pinned_sdk_provenance_has_no_hidden_venv_copy():
+    contract_path = Path("contracts/license_scope.py")
+    header = contract_path.read_text(encoding="utf-8")[:2000]
+    assert f'"Depends": "py-genlayer:{RUNNER_HASH}"' in header
+
+    assert genlayer.__file__ is not None
+    sdk_root = Path(genlayer.__file__).resolve().parent
+    normalized_origin = sdk_root.as_posix().lower()
+    assert "/.cache/gltest-direct/extracted/" in normalized_origin
+    assert f"/py-lib-genlayer-std/{STD_HASH}/genlayer" in normalized_origin
+    assert "/.venv/" not in normalized_origin
+
+    digest = hashlib.sha256()
+    file_count = 0
+    for path in sorted(sdk_root.rglob("*"), key=lambda item: item.relative_to(sdk_root).as_posix()):
+        if not path.is_file() or "__pycache__" in path.parts or path.suffix in {".pyc", ".pyo"}:
+            continue
+        relative = path.relative_to(sdk_root).as_posix().encode("utf-8")
+        digest.update(relative + b"\0" + path.read_bytes() + b"\0")
+        file_count += 1
+
+    assert file_count == 43
+    assert digest.hexdigest() == SDK_TREE_SHA256
 
 # Mock classes for gl.vm.Result and gl.vm.Return
 class MockVMReturn:
@@ -613,6 +658,72 @@ def test_stable_consensus_comparison_ignores_only_explanation():
     }
     validator = {**base, "explanation": "different validator prose"}
     assert _stable_decisions_agree(base, validator) is True
+
+
+def test_stable_consensus_comparison_canonicalizes_equivalent_collections():
+    leader = {
+        "status_code": 3,
+        "reason_code": "LICENSE_WITH_OBLIGATIONS",
+        "license_ids": ["MIT", "Apache-2.0", "MIT"],
+        "obligations": ["NOTICE", "ATTRIBUTION", "NOTICE"],
+        "subject_match": "EXACT",
+        "revision_match": "EXACT",
+        "evidence_sufficient": True,
+        "evidence_references": [
+            "https://example.com/license",
+            "https://example.com/commit",
+            "https://example.com/license",
+        ],
+        "explanation": "leader prose",
+    }
+    validator = {
+        **leader,
+        "license_ids": ["Apache-2.0", "MIT"],
+        "obligations": ["ATTRIBUTION", "NOTICE"],
+        "evidence_references": [
+            "https://example.com/commit",
+            "https://example.com/license",
+        ],
+        "explanation": "validator prose",
+    }
+
+    assert _validate_consensus_schema(leader)["license_ids"] == ["Apache-2.0", "MIT"]
+    assert _validate_consensus_schema(leader)["obligations"] == ["ATTRIBUTION", "NOTICE"]
+    assert _stable_decisions_agree(leader, validator) is True
+
+
+def test_normalized_decision_stores_sorted_unique_collections():
+    raw = {
+        "status_code": 3,
+        "reason_code": "LICENSE_WITH_OBLIGATIONS",
+        "license_ids": ["MIT", "Apache-2.0", "MIT"],
+        "obligations": ["NOTICE", "ATTRIBUTION", "NOTICE"],
+        "subject_match": "EXACT",
+        "revision_match": "EXACT",
+        "evidence_sufficient": True,
+        "evidence_references": [
+            f"https://raw.githubusercontent.com/org/repo/{VALID_SHA}/LICENSE",
+            f"https://api.github.com/repos/org/repo/commits/{VALID_SHA}",
+            f"https://raw.githubusercontent.com/org/repo/{VALID_SHA}/LICENSE",
+        ],
+        "explanation": "Equivalent collections normalize once.",
+    }
+
+    normalized = _normalize_and_validate_decision(
+        raw,
+        "GITHUB_REPO",
+        "org",
+        "repo",
+        VALID_SHA,
+        "COMMERCIAL_INFERENCE",
+    )
+
+    assert normalized["license_ids"] == ["Apache-2.0", "MIT"]
+    assert normalized["obligations"] == ["ATTRIBUTION", "NOTICE"]
+    assert normalized["evidence_references"] == [
+        f"https://api.github.com/repos/org/repo/commits/{VALID_SHA}",
+        f"https://raw.githubusercontent.com/org/repo/{VALID_SHA}/LICENSE",
+    ]
 
 
 def test_stable_consensus_comparison_rejects_different_obligations():

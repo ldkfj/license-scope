@@ -3,7 +3,8 @@
 import json
 import re
 from dataclasses import dataclass
-from genlayer import Address, allow_storage, gl, DynArray, TreeMap
+
+from genlayer import Address, DynArray, TreeMap, allow_storage, gl
 from genlayer.py.types import u8, u256
 
 STATUS_PENDING = u8(1)
@@ -85,8 +86,8 @@ CANONICAL_POLICY_MANIFEST = {
     "use_profiles": USE_PROFILES,
     "reason_codes": REASON_CODES,
     "obligation_codes": OBLIGATION_CODES,
-    "known_permissive_licenses": sorted(list(KNOWN_PERMISSIVE_LICENSES)),
-    "known_restricted_licenses": sorted(list(KNOWN_RESTRICTED_LICENSES)),
+    "known_permissive_licenses": sorted(KNOWN_PERMISSIVE_LICENSES),
+    "known_restricted_licenses": sorted(KNOWN_RESTRICTED_LICENSES),
     "profile_compatibility_matrix": {
         "INTERNAL_RESEARCH": {
             "allowed_obligations": [
@@ -264,6 +265,13 @@ def _parse_bool_strict(val) -> bool | None:
     return val
 
 
+def _canonical_string_set(value) -> list[str]:
+    """Return one deterministic representation for a consensus set."""
+    if type(value) is not list or any(type(item) is not str for item in value):
+        return []
+    return sorted(set(value))
+
+
 def _truncate_utf8_bytes(text: str, max_bytes: int) -> str:
     encoded = text.encode("utf-8")
     if len(encoded) <= max_bytes:
@@ -354,8 +362,8 @@ def _normalize_and_validate_decision(
 
     st = raw_dict.get("status_code", 5)
     rc = raw_dict.get("reason_code", "CUSTOM_OR_UNKNOWN_TERMS")
-    lics = raw_dict.get("license_ids", [])
-    obls = raw_dict.get("obligations", [])
+    lics = _canonical_string_set(raw_dict.get("license_ids", []))
+    obls = _canonical_string_set(raw_dict.get("obligations", []))
     sm = raw_dict.get("subject_match", "UNCLEAR")
     rm = raw_dict.get("revision_match", "UNCLEAR")
     ev = _parse_bool_strict(raw_dict.get("evidence_sufficient"))
@@ -367,8 +375,8 @@ def _normalize_and_validate_decision(
     if isinstance(refs, list):
         for r in refs:
             if isinstance(r, str) and r in derived_urls and len(r) <= MAX_EVIDENCE_REF_LEN:
-                if r not in valid_refs:
-                    valid_refs.append(r)
+                valid_refs.append(r)
+    valid_refs = sorted(set(valid_refs))
 
     has_commit_ref = any("commits" in r for r in valid_refs)
     has_source_ref = any("commits" not in r for r in valid_refs)
@@ -584,12 +592,12 @@ def _validate_consensus_schema(eval_dict: dict) -> dict | None:
     return {
         "status_code": st,
         "reason_code": rc,
-        "license_ids": lics,
-        "obligations": obls,
+        "license_ids": _canonical_string_set(lics),
+        "obligations": _canonical_string_set(obls),
         "subject_match": sm,
         "revision_match": rm,
         "evidence_sufficient": ev,
-        "evidence_references": refs,
+        "evidence_references": _canonical_string_set(refs),
         "explanation": exp,
     }
 
@@ -606,7 +614,23 @@ def _stable_decisions_agree(leader: dict, validator: dict) -> bool:
         "evidence_sufficient",
         "evidence_references",
     )
-    return all(leader.get(field) == validator.get(field) for field in stable_fields)
+    collection_fields = {"license_ids", "obligations", "evidence_references"}
+    for field in stable_fields:
+        leader_value = leader.get(field)
+        validator_value = validator.get(field)
+        if field in collection_fields:
+            if (
+                type(leader_value) is not list
+                or type(validator_value) is not list
+                or any(type(item) is not str for item in leader_value)
+                or any(type(item) is not str for item in validator_value)
+            ):
+                return False
+            leader_value = _canonical_string_set(leader_value)
+            validator_value = _canonical_string_set(validator_value)
+        if leader_value != validator_value:
+            return False
+    return True
 
 
 def _fetch_and_evaluate_evidence(
@@ -793,7 +817,7 @@ def _fetch_and_evaluate_evidence(
             raw_res = {
                 "status_code": 5,
                 "reason_code": "SOURCE_CONFLICT",
-                "license_ids": sorted(list(detected_licenses)),
+                "license_ids": sorted(detected_licenses),
                 "obligations": [],
                 "subject_match": "EXACT",
                 "revision_match": "EXACT",
@@ -930,7 +954,7 @@ Respond ONLY with a valid JSON object matching this exact structure (DO NOT incl
     return _normalize_and_validate_decision(raw_res, kind, ns, name, rev, profile)
 
 
-class Contract(gl.Contract):
+class LicenseScope(gl.Contract):
     assessments: DynArray[AssessmentRecord]
     key_to_id: TreeMap[str, u256]
     assessment_count: u256

@@ -101,6 +101,13 @@ test('undetermined status fails closed', () => {
   );
 });
 
+test('accepted status fails closed before finality', () => {
+  assert.throws(
+    () => validateGenLayerReceipt({ ...successfulReceipt(), statusName: 'ACCEPTED' }),
+    /finalized/i,
+  );
+});
+
 test('leader receipt must be a non-empty array', () => {
   const receipt = successfulReceipt();
   receipt.consensus_data.leader_receipt = [];

@@ -67,9 +67,9 @@ The frontend may be configured only after post-deployment acceptance proves the 
 
 ## Pre-deployment identity procedure
 
-1. User selects the intended deployment wallet and external upgrader public address.
-2. Codex verifies that both are public addresses on the intended Studionet workflow and records whether they are the same wallet.
-3. If one wallet fills both roles, record the concentration risk: key loss can prevent recovery and key compromise can permit code replacement.
+1. **Completed:** User selected the intended deployment wallet and external upgrader public address.
+2. **Completed:** Codex format-checked both public addresses for the intended Studionet workflow and recorded that they are the same wallet.
+3. **Completed:** The one-wallet concentration risk is recorded above: key loss can prevent recovery and key compromise can permit code replacement.
 4. Complete the exact release commit and source hash.
 5. Obtain Codex and anonymous co-review AI approval for the same PRE_DEPLOY revision/evidence package.
 6. Immediately before deployment, verify the active wallet identity, Studionet target, constructor upgrader, and source revision.

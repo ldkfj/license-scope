@@ -27,11 +27,11 @@ LicenseScope is classified as `PROJECT`, not a standalone `INTELLIGENT_CONTRACT`
 
 ## Engineering: 4/5
 
-**Evidence:** Python 3.12 toolchain and dependencies are transitively locked with `uv.lock`; frontend dependencies are locked with `package-lock.json`; GenVM lint/validation, direct tests, strict frontend tests, typecheck, lint, and production build are reproducible. Public/internal artifact boundaries are defined in `.gitignore`.
+**Evidence:** Python 3.13 toolchain and dependencies are transitively locked with `uv.lock`; the contract-pinned official SDK is bootstrapped by `tests/conftest.py` and verified by a canonical tree-digest regression; frontend dependencies are locked with `package-lock.json`; GenVM lint/validation, direct tests, strict frontend tests, typecheck, lint, production build, and dependency audit are reproducible. Public/internal artifact boundaries are defined in `.gitignore`.
 
 **Inspected:** `pyproject.toml`, `uv.lock`, `frontend/package-lock.json`, tests, build configuration, `README.md`, `docs/VERIFICATION.md`, and `docs/DEPLOYMENT_RECOVERY.md`.
 
-**Remaining weakness:** Exact local release commit and real deployment/live evidence are not yet available. Integration tests are intentionally skipped without explicit live configuration and therefore are not integration proof.
+**Remaining weakness:** Real deployment/live evidence is not yet available. Integration tests are intentionally skipped without explicit live configuration and therefore are not integration proof.
 
 ## Frontend / UX: 3/5
 
@@ -46,11 +46,14 @@ LicenseScope is classified as `PROJECT`, not a standalone `INTELLIGENT_CONTRACT`
 LicenseScope is a strong offline PRE_DEPLOY candidate with substantive GenLayer consensus behavior, fail-closed evidence handling, strict transaction/readback authority, and an explicit recovery model.
 
 ```text
-Submission recommendation: NOT READY FOR DEPLOYMENT
+Submission recommendation: READY FOR ANONYMOUS PRE_DEPLOY RE-REVIEW — NOT AUTHORIZED FOR DEPLOYMENT
 ```
 
-Current blockers before PRE_DEPLOY anonymous handoff:
+Codex `PRE_DEPLOY` technical verdict: `APPROVED` for the exact corrected source/evidence package named in the re-review handoff. This does not replace anonymous approval and does not authorize deployment.
 
-1. Codex PRE_DEPLOY verdict for the final evidence-package commit and completed checkpoint evidence.
+Current blocker before deployment:
+
+1. Fresh anonymous `PRE_DEPLOY` approval for the exact corrected revision and evidence package.
+2. Separate explicit user confirmation immediately before the Studionet deployment transaction.
 
 Deployment, GitHub push, Vercel release, live proof, and final scorecard are later checkpoints and do not count as current offline evidence.

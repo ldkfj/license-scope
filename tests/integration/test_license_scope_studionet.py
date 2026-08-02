@@ -6,13 +6,16 @@ Uses official gltest 0.29.2 contract factory, dynamic ContractFunction.transact(
 
 import json
 import os
-import pytest
 
+import pytest
 from gltest.types import TransactionStatus
 
 IS_STUDIONET_LIVE_CONFIGURED = os.getenv("GENLAYER_STUDIONET_LIVE", "false").lower() == "true"
 
-VALID_SHA = "a1b2c3d4e5f60718293a4b5c6d7e8f9012345678"
+HAPPY_PATH_OWNER = "snap-research"
+HAPPY_PATH_REPO = "CoSearch"
+HAPPY_PATH_SHA = "763bf8c4d7caa363ad845d39ddfd53b81ae377bd"
+NONEXISTENT_REVISION = "a1b2c3d4e5f60718293a4b5c6d7e8f9012345678"
 POLICY_HASH = "sha256:1105b19ea7786bbd5ace24445845997e914e726cd2f80ddf83d8a6f8f8769532"
 
 skip_offline_studionet = pytest.mark.skipif(
@@ -62,7 +65,7 @@ def assert_same_identity(before, after):
 def test_studionet_request_resolve_readback():
     """Integration test exercising request -> resolve -> receipt/status -> state readback on Studionet."""
     verify_studionet_target_config()
-    from gltest import get_gl_client, get_contract_factory, get_accounts
+    from gltest import get_accounts, get_contract_factory, get_gl_client
 
     client = get_gl_client()
     accounts = get_accounts()
@@ -72,14 +75,21 @@ def test_studionet_request_resolve_readback():
     contract = factory.deploy(args=[deployer_acc.address], account=deployer_acc)
 
     tx_receipt = contract.request_assessment(
-        args=["GITHUB_REPO", "facebookresearch", "llama", VALID_SHA, "COMMERCIAL_INFERENCE"]
+        args=[
+            "GITHUB_REPO",
+            HAPPY_PATH_OWNER,
+            HAPPY_PATH_REPO,
+            HAPPY_PATH_SHA,
+            "COMMERCIAL_INFERENCE",
+        ]
     ).transact(wait_transaction_status=TransactionStatus.FINALIZED)
     assert_successful_finalized_transaction(client, tx_receipt)
 
     assessment_id = 1
     pending = contract.get_assessment(args=[assessment_id]).call()
     assert pending["canonical_key"] == (
-        f"GITHUB_REPO:facebookresearch/llama@{VALID_SHA}#COMMERCIAL_INFERENCE#LS-V1"
+        f"GITHUB_REPO:{HAPPY_PATH_OWNER}/{HAPPY_PATH_REPO}@{HAPPY_PATH_SHA}"
+        "#COMMERCIAL_INFERENCE#LS-V1"
     )
     assert pending["requester"] == deployer_acc.address
     assert pending["status"] == 1
@@ -96,16 +106,22 @@ def test_studionet_request_resolve_readback():
 
     rec = contract.get_assessment(args=[assessment_id]).call()
     assert_same_identity(pending, rec)
-    assert rec["status"] in (2, 3, 4, 5)
-    assert rec["status_name"] == rec["verdict"]
-    assert rec["reason_code"]
+    assert rec["status"] == 4
+    assert rec["status_name"] == "BLOCK"
+    assert rec["verdict"] == "BLOCK"
+    assert rec["reason_code"] == "EXPLICIT_USE_RESTRICTION"
+    assert rec["subject_match"] == "EXACT"
+    assert rec["revision_match"] == "EXACT"
+    assert rec["evidence_sufficient"] is True
+    assert json.loads(rec["license_ids"]) == ["CC-BY-NC-4.0"]
+    assert "NO_COMMERCIAL_USE" in json.loads(rec["obligations"])
 
 
 @skip_offline_studionet
 def test_studionet_retry_from_unresolved():
     """Integration test covering request -> resolve to UNRESOLVED -> readback UNRESOLVED -> retry -> readback PENDING."""
     verify_studionet_target_config()
-    from gltest import get_gl_client, get_contract_factory, get_accounts
+    from gltest import get_accounts, get_contract_factory, get_gl_client
 
     client = get_gl_client()
     accounts = get_accounts()
@@ -115,7 +131,13 @@ def test_studionet_retry_from_unresolved():
     contract = factory.deploy(args=[deployer_acc.address], account=deployer_acc)
 
     tx_receipt = contract.request_assessment(
-        args=["GITHUB_REPO", "nonexistent-org-99", "nonexistent-repo-99", VALID_SHA, "COMMERCIAL_INFERENCE"]
+        args=[
+            "GITHUB_REPO",
+            "nonexistent-org-99",
+            "nonexistent-repo-99",
+            NONEXISTENT_REVISION,
+            "COMMERCIAL_INFERENCE",
+        ]
     ).transact(wait_transaction_status=TransactionStatus.FINALIZED)
     assert_successful_finalized_transaction(client, tx_receipt)
 
@@ -154,7 +176,7 @@ def test_studionet_retry_from_unresolved():
 def test_studionet_multi_account_permissions():
     """Integration test verifying separate requester and resolver accounts using contract.connect(account)."""
     verify_studionet_target_config()
-    from gltest import get_gl_client, get_contract_factory, get_accounts
+    from gltest import get_accounts, get_contract_factory, get_gl_client
 
     client = get_gl_client()
     accounts = get_accounts()
@@ -165,7 +187,13 @@ def test_studionet_multi_account_permissions():
     contract = factory.deploy(args=[requester_acc.address], account=requester_acc)
 
     tx_receipt = contract.request_assessment(
-        args=["GITHUB_REPO", "test-org", "test-repo", VALID_SHA, "COMMERCIAL_MODEL_TRAINING"]
+        args=[
+            "GITHUB_REPO",
+            HAPPY_PATH_OWNER,
+            HAPPY_PATH_REPO,
+            HAPPY_PATH_SHA,
+            "COMMERCIAL_MODEL_TRAINING",
+        ]
     ).transact(wait_transaction_status=TransactionStatus.FINALIZED)
     assert_successful_finalized_transaction(client, tx_receipt)
 
@@ -177,3 +205,10 @@ def test_studionet_multi_account_permissions():
         wait_transaction_status=TransactionStatus.FINALIZED
     )
     assert_successful_finalized_transaction(client, receipt)
+
+    resolved = contract.get_assessment(args=[1]).call()
+    assert_same_identity(rec, resolved)
+    assert resolved["status"] == 4
+    assert resolved["status_name"] == "BLOCK"
+    assert resolved["verdict"] == "BLOCK"
+    assert resolved["reason_code"] == "EXPLICIT_USE_RESTRICTION"

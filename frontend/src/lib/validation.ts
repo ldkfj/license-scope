@@ -97,8 +97,8 @@ export function validateGenLayerReceipt(
   }
 
   const statusName = typeof rec.statusName === 'string' ? rec.statusName : rec.status;
-  if (statusName !== 'ACCEPTED' && statusName !== 'FINALIZED') {
-    throw new Error(`Transaction receipt status rejected: ${String(statusName ?? 'MISSING')}.`);
+  if (statusName !== 'FINALIZED') {
+    throw new Error(`Transaction receipt status must be FINALIZED; received ${String(statusName ?? 'MISSING')}.`);
   }
   if (typeof rec.statusName === 'string' && typeof rec.status === 'string' && rec.status !== rec.statusName) {
     throw new Error('Transaction receipt status and statusName disagree.');

@@ -2,7 +2,7 @@
 name = "license-scope"
 version = "0.1.0"
 description = "Operational-rights attestations for immutable public artifacts on GenLayer"
-requires-python = ">=3.12,<3.13"
+requires-python = ">=3.13,<3.14"
 dependencies = [
   "cloudpickle==3.1.2",
   "genlayer-py==0.16.3",
