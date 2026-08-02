@@ -18,10 +18,10 @@ The user selected one public wallet for both deployment and upgrade authority. N
 | RPC | `https://studio.genlayer.com/api` |
 | Explorer | `https://explorer-studio.genlayer.com/` |
 | Contract source | `contracts/license_scope.py` |
-| Contract source SHA-256 | `81e533a79e14f8edec04096f871ca7112f2e37a2b9045275e88d530abb42f958` |
+| Contract source SHA-256 | `8a9e10aed946d2860145451a898a726dd8c726689be7e2fff1e557afa5cc43ed` |
 | Policy version | `LS-V1` |
 | Policy manifest hash | `sha256:1105b19ea7786bbd5ace24445845997e914e726cd2f80ddf83d8a6f8f8769532` |
-| Source-code commit | `ac3d68a21c5da0dfa5e5879ff09a2777230057a9` |
+| Source-code commit | `dc5f4c3673e14427f563a843ef5f33cef3b225f5` |
 | Deployment wallet public address | `0x7885536194bbd6e1d0a6ab991ab215cfa9542339` |
 | External upgrader public address | `0x7885536194bbd6e1d0a6ab991ab215cfa9542339` |
 | Constructor arguments | `upgrader_address = 0x7885536194bbd6e1d0a6ab991ab215cfa9542339` |
@@ -70,8 +70,8 @@ The frontend may be configured only after post-deployment acceptance proves the 
 1. **Completed:** User selected the intended deployment wallet and external upgrader public address.
 2. **Completed:** Codex format-checked both public addresses for the intended Studionet workflow and recorded that they are the same wallet.
 3. **Completed:** The one-wallet concentration risk is recorded above: key loss can prevent recovery and key compromise can permit code replacement.
-4. Complete the exact release commit and source hash.
-5. Obtain Codex and anonymous co-review AI approval for the same PRE_DEPLOY revision/evidence package.
+4. **Completed:** Exact source commit and contract source hash are recorded above.
+5. **Partially completed:** Codex returned `APPROVED` for the corrected package; fresh anonymous co-review approval for the same exact revision/evidence package remains required.
 6. Immediately before deployment, verify the active wallet identity, Studionet target, constructor upgrader, and source revision.
 7. Ask the user for a separate explicit confirmation to send the deployment transaction.
 

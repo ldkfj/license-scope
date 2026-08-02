@@ -113,7 +113,7 @@ Prerequisites:
 
 - Python `3.13.x`
 - `uv`
-- Node.js compatible with Next.js 16
+- Node.js `>=20.9.0` (required by Next.js 16 and the audited `sharp` override)
 - npm
 
 Install the locked Python environment:
@@ -149,7 +149,7 @@ env -u PYTHONPATH uv pip check
 env -u PYTHONPATH uv run genvm-lint check contracts/license_scope.py
 env -u PYTHONPATH uv run pytest tests/direct -v
 env -u PYTHONPATH uv run pytest tests/integration -v
-env -u PYTHONPATH uv run pytest tests/integration -v --network studionet --chain-type studionet --rpc-url https://studio.genlayer.com/api
+env -u PYTHONPATH uv run gltest tests/integration -v --network studionet --rpc-url https://studio.genlayer.com/api
 npm --prefix frontend test
 npm --prefix frontend run typecheck
 npm --prefix frontend run lint
