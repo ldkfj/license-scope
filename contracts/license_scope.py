@@ -209,9 +209,13 @@ class AssessmentRecord:
     retry_count: u8
 
 
-def _parse_address(addr: str | Address) -> Address:
+def _parse_address(addr: str | Address | int) -> Address:
     if isinstance(addr, Address):
         return addr
+    if isinstance(addr, int):
+        if addr < 0 or addr >= (1 << (Address.SIZE * 8)):
+            raise gl.vm.UserError("ERR_INVALID_UPGRADER_ADDRESS")
+        return Address(addr.to_bytes(Address.SIZE, "big"))
     return Address(addr)
 
 

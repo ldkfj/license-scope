@@ -20,6 +20,7 @@ from license_scope import (
     STATUS_CONDITIONAL,
     STATUS_UNRESOLVED,
     _normalize_and_validate_decision,
+    _parse_address,
     _safe_decode_utf8_response_body,
     _stable_decisions_agree,
     _validate_consensus_schema,
@@ -35,13 +36,17 @@ STD_HASH = "11rhn002yfajawsz7fai6mykznbxkxs6l91iskj5cm82c92qhy3v"
 SDK_TREE_SHA256 = "bc2979c4b22cd8ef1363db7031c9d1d2c27184ab950900c731f3e29c261254b2"
 
 
-def Contract(upgrader: Address):
+def Contract(upgrader: Address | int):
     """Deploy a fresh class with the official Direct Mode loader."""
     contract_path = Path("contracts/license_scope.py")
     setup_sdk_paths(contract_path)
     from genlayer.py.types import Address as RunnerAddress
 
-    runner_upgrader = RunnerAddress(upgrader.as_bytes)
+    runner_upgrader = (
+        RunnerAddress(upgrader.as_bytes)
+        if isinstance(upgrader, Address)
+        else upgrader
+    )
     registry = sys.modules.get("genlayer.gl.genvm_contracts")
     if registry is not None:
         registry.__dict__["__known_contract__"] = None
@@ -120,6 +125,26 @@ def test_constructor_registers_intended_upgrader():
 
     registered = list(gl.storage.Root.get().upgraders.get())
     assert registered == [intended_upgrader]
+
+
+def test_parse_address_accepts_studio_integer_constructor_argument():
+    studio_encoded = int(RESOLVER.as_hex, 16)
+
+    assert _parse_address(studio_encoded) == RESOLVER
+
+
+def test_constructor_registers_studio_integer_upgrader():
+    studio_encoded = int(RESOLVER.as_hex, 16)
+    Contract(studio_encoded)
+
+    registered = list(gl.storage.Root.get().upgraders.get())
+    assert registered == [RESOLVER]
+
+
+@pytest.mark.parametrize("invalid", [-1, 1 << (Address.SIZE * 8)])
+def test_parse_address_rejects_out_of_range_integer(invalid):
+    with pytest.raises(Exception, match="ERR_INVALID_UPGRADER_ADDRESS"):
+        _parse_address(invalid)
 
 
 def test_authorized_upgrader_replaces_root_code():
