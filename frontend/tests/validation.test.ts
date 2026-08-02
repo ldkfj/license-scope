@@ -32,6 +32,55 @@ function successfulReceipt(): {
   };
 }
 
+function currentStudionetSuccessfulReceipt() {
+  return {
+    status: 7,
+    statusName: 'FINALIZED',
+    result: 6,
+    result_name: 'MAJORITY_AGREE',
+    consensus_data: {
+      votes: {
+        '0x1111111111111111111111111111111111111111': 'agree',
+      },
+      leader_receipt: [
+        {
+          execution_result: 'SUCCESS',
+          result: { status: 'return', payload: { readable: '1' } },
+          genvm_result: {
+            stderr: '',
+            raw_error: null,
+            error_code: null,
+            error_description: null,
+          },
+        },
+      ],
+    },
+  };
+}
+
+function retainedFailedStudionetReceipt() {
+  return {
+    status: 7,
+    statusName: 'FINALIZED',
+    result: 6,
+    result_name: 'MAJORITY_AGREE',
+    consensus_data: {
+      leader_receipt: [
+        {
+          execution_result: 'ERROR',
+          result: { status: 'contract_error', payload: 'exit_code 1' },
+          genvm_result: {
+            stderr: 'OverflowError: cannot fit int into an index-sized integer',
+            raw_error: null,
+            error_code: null,
+            error_description: null,
+          },
+        },
+      ],
+    },
+  };
+}
+
 function pendingRecord() {
   return {
     assessment_id: 1,
@@ -67,9 +116,25 @@ test('explicit finalized successful execution receipt passes', () => {
   });
 });
 
-test('missing execution result fails closed', () => {
+test('current Studionet success shape proceeds without legacy top-level execution fields', () => {
+  assert.deepEqual(validateGenLayerReceipt(currentStudionetSuccessfulReceipt()), {
+    status: 'FINALIZED',
+    executionResult: 'FINISHED_WITH_RETURN',
+    consensusResult: 'MAJORITY_AGREE',
+  });
+});
+
+test('retained finalized-with-error Studionet transaction fails on leader execution', () => {
+  assert.throws(
+    () => validateGenLayerReceipt(retainedFailedStudionetReceipt()),
+    /leader execution result rejected: ERROR/i,
+  );
+});
+
+test('missing top-level and leader execution result fails closed', () => {
   const receipt = successfulReceipt();
   delete (receipt as Partial<typeof receipt>).txExecutionResultName;
+  delete (receipt.consensus_data.leader_receipt[0] as Partial<{ execution_result: string }>).execution_result;
   assert.throws(() => validateGenLayerReceipt(receipt), /execution result/i);
 });
 
@@ -91,6 +156,33 @@ test('named and numeric execution results must not disagree', () => {
   assert.throws(
     () => validateGenLayerReceipt({ ...successfulReceipt(), txExecutionResult: 2 }),
     /execution result/i,
+  );
+});
+
+test('camelCase and Studionet consensus representations must not disagree', () => {
+  assert.throws(
+    () => validateGenLayerReceipt({
+      ...currentStudionetSuccessfulReceipt(),
+      resultName: 'AGREE',
+    }),
+    /consensus result representations disagree/i,
+  );
+  assert.throws(
+    () => validateGenLayerReceipt({
+      ...currentStudionetSuccessfulReceipt(),
+      result: 7,
+    }),
+    /consensus result representations disagree/i,
+  );
+});
+
+test('numeric and named finalized status must not disagree', () => {
+  assert.throws(
+    () => validateGenLayerReceipt({
+      ...currentStudionetSuccessfulReceipt(),
+      status: 5,
+    }),
+    /status representations disagree/i,
   );
 });
 
@@ -119,6 +211,30 @@ test('leader receipt must be a non-empty array', () => {
     }),
     /leader receipt/i,
   );
+});
+
+test('optional consensus final marker may be absent but cannot contradict finality', () => {
+  assert.doesNotThrow(() => validateGenLayerReceipt(currentStudionetSuccessfulReceipt()));
+  assert.throws(
+    () => validateGenLayerReceipt({
+      ...currentStudionetSuccessfulReceipt(),
+      consensus_data: {
+        ...currentStudionetSuccessfulReceipt().consensus_data,
+        final: false,
+      },
+    }),
+    /must not contradict finalized status/i,
+  );
+});
+
+test('leader result and GenVM error details cannot contradict successful execution', () => {
+  const contractError = currentStudionetSuccessfulReceipt();
+  contractError.consensus_data.leader_receipt[0].result.status = 'contract_error';
+  assert.throws(() => validateGenLayerReceipt(contractError), /leader result status rejected/i);
+
+  const stderrError = currentStudionetSuccessfulReceipt();
+  stderrError.consensus_data.leader_receipt[0].genvm_result.stderr = 'unexpected runtime error';
+  assert.throws(() => validateGenLayerReceipt(stderrError), /leader GenVM stderr rejected/i);
 });
 
 test('any failed leader execution rejects receipt', () => {

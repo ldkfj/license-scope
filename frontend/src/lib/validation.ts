@@ -69,6 +69,85 @@ function requireInteger(value: unknown, field: string, minimum: number): number 
   return value;
 }
 
+const TRANSACTION_STATUS_BY_CODE: Record<number, string> = {
+  0: 'UNINITIALIZED',
+  1: 'PENDING',
+  2: 'PROPOSING',
+  3: 'COMMITTING',
+  4: 'REVEALING',
+  5: 'ACCEPTED',
+  6: 'UNDETERMINED',
+  7: 'FINALIZED',
+  8: 'CANCELED',
+  9: 'APPEAL_REVEALING',
+  10: 'APPEAL_COMMITTING',
+  11: 'READY_TO_FINALIZE',
+  12: 'VALIDATORS_TIMEOUT',
+  13: 'LEADER_TIMEOUT',
+};
+
+const TRANSACTION_RESULT_BY_CODE: Record<number, string> = {
+  0: 'IDLE',
+  1: 'AGREE',
+  2: 'DISAGREE',
+  3: 'TIMEOUT',
+  4: 'DETERMINISTIC_VIOLATION',
+  5: 'NO_MAJORITY',
+  6: 'MAJORITY_AGREE',
+  7: 'MAJORITY_DISAGREE',
+};
+
+const EXECUTION_RESULT_BY_CODE: Record<number, string> = {
+  0: 'NOT_VOTED',
+  1: 'FINISHED_WITH_RETURN',
+  2: 'FINISHED_WITH_ERROR',
+};
+
+function requireConsistentRepresentations(values: string[], field: string): string {
+  if (values.length === 0) {
+    throw new Error(`${field} is missing.`);
+  }
+  if (new Set(values).size !== 1) {
+    throw new Error(`${field} representations disagree.`);
+  }
+  return values[0];
+}
+
+function collectNamedRepresentation(
+  record: Record<string, unknown>,
+  keys: string[],
+  field: string,
+): string[] {
+  const values: string[] = [];
+  for (const key of keys) {
+    if (record[key] !== undefined) {
+      values.push(requireString(record[key], `${field} (${key})`));
+    }
+  }
+  return values;
+}
+
+function collectNumericRepresentation(
+  record: Record<string, unknown>,
+  keys: string[],
+  namesByCode: Record<number, string>,
+  field: string,
+): string[] {
+  const values: string[] = [];
+  for (const key of keys) {
+    if (record[key] === undefined) {
+      continue;
+    }
+    const code = requireInteger(record[key], `${field} (${key})`, 0);
+    const name = namesByCode[code];
+    if (!name) {
+      throw new Error(`${field} (${key}) has an unknown code.`);
+    }
+    values.push(name);
+  }
+  return values;
+}
+
 function parseStringArray(value: unknown, field: string): string[] {
   if (typeof value !== 'string') {
     throw new Error(`${field} must be a JSON string.`);
@@ -96,34 +175,65 @@ export function validateGenLayerReceipt(
     throw new Error(`Transaction receipt error: ${String(rec.error ?? 'MISSING')}.`);
   }
 
-  const statusName = typeof rec.statusName === 'string' ? rec.statusName : rec.status;
+  const statusName = requireConsistentRepresentations(
+    [
+      ...collectNamedRepresentation(rec, ['statusName', 'status_name'], 'Transaction receipt status'),
+      ...(typeof rec.status === 'string'
+        ? [requireString(rec.status, 'Transaction receipt status (status)')]
+        : collectNumericRepresentation(rec, ['status'], TRANSACTION_STATUS_BY_CODE, 'Transaction receipt status')),
+    ],
+    'Transaction receipt status',
+  );
   if (statusName !== 'FINALIZED') {
-    throw new Error(`Transaction receipt status must be FINALIZED; received ${String(statusName ?? 'MISSING')}.`);
-  }
-  if (typeof rec.statusName === 'string' && typeof rec.status === 'string' && rec.status !== rec.statusName) {
-    throw new Error('Transaction receipt status and statusName disagree.');
+    throw new Error(`Transaction receipt status must be FINALIZED; received ${statusName}.`);
   }
 
-  let executionResult: string;
-  if (
-    rec.txExecutionResultName === 'FINISHED_WITH_RETURN' &&
-    (rec.txExecutionResult === undefined || rec.txExecutionResult === 1)
-  ) {
-    executionResult = rec.txExecutionResultName;
-  } else if (rec.txExecutionResultName === undefined && rec.txExecutionResult === 1) {
-    executionResult = 'FINISHED_WITH_RETURN';
-  } else {
-    throw new Error(`Transaction execution result rejected: ${String(rec.txExecutionResultName ?? rec.txExecutionResult ?? 'MISSING')}.`);
+  const topLevelExecutionRepresentations = [
+    ...collectNamedRepresentation(
+      rec,
+      ['txExecutionResultName', 'tx_execution_result_name'],
+      'Transaction execution result',
+    ),
+    ...collectNumericRepresentation(
+      rec,
+      ['txExecutionResult', 'tx_execution_result'],
+      EXECUTION_RESULT_BY_CODE,
+      'Transaction execution result',
+    ),
+  ];
+  if (topLevelExecutionRepresentations.length > 0) {
+    const topLevelExecution = requireConsistentRepresentations(
+      topLevelExecutionRepresentations,
+      'Transaction execution result',
+    );
+    if (topLevelExecution !== 'FINISHED_WITH_RETURN') {
+      throw new Error(`Transaction execution result rejected: ${topLevelExecution}.`);
+    }
   }
 
-  const consensusResult = requireString(rec.resultName, 'Transaction consensus result');
-  if (!['AGREE', 'MAJORITY_AGREE', 'SUCCESS'].includes(consensusResult)) {
+  const consensusResult = requireConsistentRepresentations(
+    [
+      ...collectNamedRepresentation(
+        rec,
+        ['resultName', 'result_name'],
+        'Transaction consensus result',
+      ),
+      ...collectNumericRepresentation(
+        rec,
+        ['result'],
+        TRANSACTION_RESULT_BY_CODE,
+        'Transaction consensus result',
+      ),
+    ],
+    'Transaction consensus result',
+  );
+  if (!['AGREE', 'MAJORITY_AGREE'].includes(consensusResult)) {
     throw new Error(`Transaction consensus result rejected: ${consensusResult}.`);
   }
 
   const consensus = requireRecord(rec.consensus_data, 'consensus_data');
-  if (consensus.final !== true) {
-    throw new Error('Transaction consensus_data.final must be true.');
+  if (consensus.final !== undefined && consensus.final !== true) {
+    throw new Error('Transaction consensus_data.final must not contradict finalized status.');
   }
   if (!Array.isArray(consensus.leader_receipt) || consensus.leader_receipt.length === 0) {
     throw new Error('Transaction leader receipt must be a non-empty array.');
@@ -131,15 +241,36 @@ export function validateGenLayerReceipt(
 
   for (const rawLeader of consensus.leader_receipt) {
     const leader = requireRecord(rawLeader, 'Leader receipt');
-    if (leader.error !== null && leader.error !== '') {
-      throw new Error(`Leader receipt error: ${String(leader.error ?? 'MISSING')}.`);
+    if ('error' in leader && leader.error !== null && leader.error !== '') {
+      throw new Error(`Leader receipt error: ${String(leader.error)}.`);
     }
     if (leader.execution_result !== 'SUCCESS' && leader.execution_result !== 'FINISHED_WITH_RETURN') {
       throw new Error(`Leader execution result rejected: ${String(leader.execution_result ?? 'MISSING')}.`);
     }
+
+    if (leader.result !== undefined) {
+      const result = requireRecord(leader.result, 'Leader result');
+      const resultStatus = requireString(result.status, 'Leader result status');
+      if (resultStatus !== 'return') {
+        throw new Error(`Leader result status rejected: ${resultStatus}.`);
+      }
+    }
+
+    if (leader.genvm_result !== undefined) {
+      const genvmResult = requireRecord(leader.genvm_result, 'Leader GenVM result');
+      for (const field of ['raw_error', 'error_code', 'error_description', 'stderr']) {
+        if (genvmResult[field] !== undefined && genvmResult[field] !== null && genvmResult[field] !== '') {
+          throw new Error(`Leader GenVM ${field} rejected: ${String(genvmResult[field])}.`);
+        }
+      }
+    }
   }
 
-  return { status: statusName, executionResult, consensusResult };
+  return {
+    status: statusName,
+    executionResult: 'FINISHED_WITH_RETURN',
+    consensusResult,
+  };
 }
 
 export function parseAssessmentRecord(raw: unknown): AssessmentRecord {
