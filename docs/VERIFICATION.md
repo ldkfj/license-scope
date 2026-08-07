@@ -6,7 +6,7 @@
 |---|---|
 | Project | LicenseScope |
 | Submission category | `PROJECT` |
-| Checkpoint | POST_DEPLOY_TEST in progress after authorized main-contract upgrade |
+| Checkpoint | POST_GITHUB_VERCEL_FINAL evidence preparation |
 | Upgrade-candidate implementation commit | `d0577dbde2e9d4b93f128173607434ecc7aa6149` |
 | Frontend receipt/finality implementation commit | `d0577dbde2e9d4b93f128173607434ecc7aa6149` |
 | Contract source | `contracts/license_scope.py` |
@@ -24,8 +24,9 @@
 | Disposable rehearsal contract | `0xF1FF7a9Faa9A9800237e945F97b69Ac837D30193` |
 | Disposable rehearsal V1 deployment | `0xda26ea0dc925a6b7c740ae2c503b5b6a869ad285ad2840a095e624b79225273a` |
 | Disposable rehearsal V2 upgrade | `0xca98a65e73c5c377924fc526dd76b7b35388b07e9eb88486f7b4c1d5674505e3` |
-| Explorer |  |
-| Live web |  |
+| Public repository | `https://github.com/ldkfj/license-scope` |
+| Explorer | `https://explorer-studio.genlayer.com/` |
+| Live web | `https://license-scope.vercel.app` |
 
 Anonymous `PRE_DEPLOY` approval was granted for package `0b9b61200b5e2cb88d0e6747d055a34cdedd7a13`, and its contract source was deployed successfully. Live lifecycle testing then found that the deployed source used `gl.nondet.web.get()` while requiring `response.status_code`; two finalized resolution attempts safely returned `UNRESOLVED / SOURCE_MISSING` because Studionet supplied no such attribute and the fail-closed default became `0`. A first repair at `a70dd74e395e71a5e165b085ebb3714125473030` remained incompatible because the exact pinned `py-lib-genlayer-std` response exposes `status`, not `status_code`. Candidate implementation `d0577dbde2e9d4b93f128173607434ecc7aa6149` closes that issue with strict dual-shape status normalization, bounded user-cancellable same-hash recovery, and one page-level transaction coordinator shared by every write surface. Exact package `184cf86a651f92aa3bbec9f2a687e1b1b74bd08a` and the later rehearsal evidence revision `fd5ad56934856706ac1798e77fe194f214aadd43` received anonymous `PRE_DEPLOY` approval. The user then separately authorized and submitted the main-contract upgrade recorded below.
 
@@ -268,10 +269,10 @@ The retained lifecycle rows prove writes, finality, safe failure/retry behavior,
 - The current Studionet deployment is executable, source-verified, and upgraded to candidate `d0577dbde2e9d4b93f128173607434ecc7aa6149`; post-upgrade retry and successful `BLOCK / EXACT` resolution passed.
 - Multi-account application behavior and independently isolated native Root locked-slot enforcement remain pending. Main-contract upgraded-source parity, preserved-state readback, and the successful verdict branch passed; the separate safe-upgrade rehearsal is complete.
 - The earlier finalized-with-error transaction remains failure evidence only.
-- No GitHub repository or Vercel deployment exists.
+- Public GitHub repository `https://github.com/ldkfj/license-scope` and production frontend `https://license-scope.vercel.app` are live. The deployed page returned HTTP `200` and rendered the configured Studionet contract address.
 - V1 supports only public GitHub repositories at immutable commit SHAs.
 - LicenseScope is not legal advice.
 - Deployed-code readback and upgrade redispatch passed on the disposable rehearsal. Native Root locking was not independently isolated from the contract's earlier explicit authorization guard.
-- Anonymous PRE_DEPLOY approval covered exact rehearsal evidence revision `fd5ad56934856706ac1798e77fe194f214aadd43`. The post-upgrade evidence changes and remaining lifecycle evidence require a later exact-revision review.
+- Anonymous PRE_DEPLOY approval covered exact rehearsal evidence revision `fd5ad56934856706ac1798e77fe194f214aadd43`; anonymous PRE_PUSH approval covered exact release revision `804b96dd3469cb30ef1eef9437e5d941f89cc52a`. This later documentation-only release-evidence update requires its own exact-revision review before another push.
 
-No push, Vercel release, multi-account completion, or Task-completion claim is made by this document.
+The initial GitHub push and Vercel production release are complete. No multi-account completion or Task-completion claim is made by this document.

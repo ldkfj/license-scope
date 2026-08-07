@@ -6,8 +6,10 @@ LicenseScope is a GenLayer DApp that records operational-rights attestations for
 
 ## Verified links
 
-The accepted Studionet contract is configured locally. GitHub and live-application links remain pending their release gates.
+The accepted Studionet contract, public source repository, and production frontend are live.
 
+- GitHub: [github.com/ldkfj/license-scope](https://github.com/ldkfj/license-scope)
+- Live app: [license-scope.vercel.app](https://license-scope.vercel.app)
 - Network: GenLayer Studionet
 - Chain ID: `61999`
 - RPC: `https://studio.genlayer.com/api`
@@ -162,7 +164,7 @@ Current exact results and evidence scope are recorded in `docs/VERIFICATION.md`.
 
 ## Deployment
 
-Release deployment is Studionet-only. The public deployment-wallet and external-upgrader address are recorded in `docs/DEPLOYMENT_RECOVERY.md`. The main contract was upgraded in place by the authorized wallet with the exact reviewed source; transaction, deployed-source parity, preserved-state readback, and a successful post-upgrade `BLOCK / EXACT` lifecycle are recorded there. Multi-account and release evidence remain pending, so no release-completion claim is made.
+Release deployment is Studionet-only. The public deployment-wallet and external-upgrader address are recorded in `docs/DEPLOYMENT_RECOVERY.md`. The main contract was upgraded in place by the authorized wallet with the exact reviewed source; transaction, deployed-source parity, preserved-state readback, and a successful post-upgrade `BLOCK / EXACT` lifecycle are recorded there. The public repository and Vercel frontend are live; multi-account application evidence remains pending, so no Task-completion claim is made.
 
 The secret-free manifest, storage compatibility policy, reset recovery procedures, and completed disposable rehearsal evidence are in `docs/DEPLOYMENT_RECOVERY.md`.
 

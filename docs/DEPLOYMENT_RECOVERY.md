@@ -29,10 +29,10 @@ The user selected one public wallet for both deployment and upgrade authority. N
 | Constructor arguments | `upgrader_address = 0x7885536194bbd6e1d0a6ab991ab215cfa9542339` |
 | Contract address | `0x8f1e48e52241E1B8b3320b953901ec7eeE481Ac7` |
 | Deployment transaction | `0xd28ff503fa44f073ed4f741427a809fa6c1717bb1f05b64901828cb0b71705d5` |
-| Explorer contract/transaction URL |  |
-| Live web URL |  |
+| Explorer contract/transaction URL | `https://explorer-studio.genlayer.com/tx/0xd28ff503fa44f073ed4f741427a809fa6c1717bb1f05b64901828cb0b71705d5` |
+| Live web URL | `https://license-scope.vercel.app` |
 
-The same wallet fills both roles. This concentrates deployment identity and code-replacement authority in one key: key loss may make recovery impossible, while key compromise may permit code replacement. The user selected this arrangement; it does not authorize deployment.
+The same wallet fills both roles. This concentrates deployment identity and code-replacement authority in one key: key loss may make recovery impossible, while key compromise may permit code replacement. The recorded deployment and main upgrade authorizations are consumed; no further deployment or upgrade is authorized.
 
 ## Upgrade candidate
 

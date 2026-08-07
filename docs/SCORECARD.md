@@ -4,56 +4,48 @@
 
 ```text
 Category: PROJECT
-Validity gate: PASS FOR OFFLINE PRE_DEPLOY SCOPE
+Validity gate: PASS THROUGH GITHUB AND VERCEL RELEASE EVIDENCE
 ```
 
-LicenseScope is classified as `PROJECT`, not a standalone `INTELLIGENT_CONTRACT`, because the deliverable includes a complete Next.js user application and claims an end-to-end wallet-to-contract assessment workflow. Final Project validity still requires one matching Studionet deployment, Explorer evidence, live application, repository, and submission package.
+LicenseScope is a `PROJECT`, not a standalone `INTELLIGENT_CONTRACT`: the deliverable includes a Next.js application, browser-wallet workflow, Studionet Intelligent Contract, public repository, and live frontend.
 
 ## GenLayer fit: 4/5
 
 **Evidence:** The consensus-critical question—whether public license evidence for an immutable artifact revision supports a specific intended-use profile—cannot be established by a deterministic contract alone. The contract derives bounded evidence, runs independent leader/validator evaluation through GenLayer, compares stable consequences, and stores the final attestation on-chain.
 
-**Inspected:** `contracts/license_scope.py`, especially source derivation/evaluation, `resolve_assessment`, stable consensus comparison, and terminal state writes; direct adversarial tests for prompt injection, license relabeling, source precedence, malformed evidence, and disagreement.
+**Live proof:** Assessment `#1` resolved after the source upgrade to `BLOCK / EXPLICIT_USE_RESTRICTION`, with subject and revision `EXACT`, sufficient immutable evidence, and `CC-BY-NC-4.0` bound against `COMMERCIAL_INFERENCE`. Transaction `0x98a4739d8c7c02e271587c432d8d0419a68819a6cf51bd6522cedc522259c562` reached `FINALIZED / MAJORITY_AGREE` with successful leader execution.
 
-**Remaining weakness:** No live Studionet validator/execution evidence exists yet. V1 supports only GitHub repositories.
+**Remaining weakness:** V1 supports only public GitHub repositories at immutable commit SHAs.
 
 ## Contract quality: 4/5
 
-**Evidence:** Canonical identity and full commit SHA are enforced; caller-supplied evidence URLs/verdicts are absent; deterministic license reconciliation outranks evaluator labels; `CUSTOM_TERMS` fails closed; consensus disagreement preserves `PENDING`; retry is bounded and atomically clears terminal fields; the upgradable path has an explicit membership guard and empty-code rejection.
+**Evidence:** Canonical identity and full commit SHA are enforced; caller-supplied evidence URLs and verdicts are absent; deterministic license reconciliation outranks evaluator labels; malformed or contradictory evidence fails closed; consensus disagreement preserves safe state; retry is bounded; and upgrade authorization plus empty-code rejection are explicit.
 
-**Inspected:** `contracts/license_scope.py`, `tests/direct/test_license_scope.py`, canonical policy hash regression, authorized/unauthorized upgrade tests, direct runtime/controlled consensus callback-count tests.
+**Live proof:** The main contract was upgraded in place with exact source parity and preserved assessment state. A populated disposable-contract rehearsal verified successful authorized upgrade and state preservation. The rehearsal address is prohibited from release use.
 
-**Remaining weakness:** Native Root Slot locking, code redispatch, deployed-source parity, and safe upgrade rehearsal remain live `VERIFY-AT-STUDIO` requirements.
+**Remaining weakness:** Native Root locked-slot enforcement was not independently isolated from the contract's explicit upgrader guard.
 
 ## Engineering: 4/5
 
-**Evidence:** Python 3.13 toolchain and dependencies are transitively locked with `uv.lock`; the contract-pinned official SDK is bootstrapped by `tests/conftest.py` and verified by a canonical tree-digest regression; frontend dependencies are locked with `package-lock.json`; GenVM lint/validation, direct tests, strict frontend tests, typecheck, lint, production build, and dependency audit are reproducible. Public/internal artifact boundaries are defined in `.gitignore`.
+**Evidence:** Python 3.13 and frontend dependencies are locked. GenVM lint and contract validation pass; 54 direct contract tests pass; the three live integration selections truthfully skip without explicit live authorization; 46 frontend behavior tests, TypeScript, ESLint, and production build pass. High-threshold dependency audit passes with zero high or critical findings; the remaining PostCSS advisory propagates into three moderate package entries and its forced repair would change the exact Next version.
 
-**Inspected:** `pyproject.toml`, `uv.lock`, `frontend/package-lock.json`, tests, build configuration, `README.md`, `docs/VERIFICATION.md`, and `docs/DEPLOYMENT_RECOVERY.md`.
+**Release proof:** The public repository is `https://github.com/ldkfj/license-scope`. Forbidden internal files, secrets, local environments, dependencies, caches, `.hallmark`, and working design artifacts are excluded.
 
-**Remaining weakness:** One deployment attempt finalized with contract execution error and is retained only as failure evidence. Successful deployment/live evidence is not yet available. Integration tests are intentionally skipped without explicit live configuration and therefore are not integration proof.
+## Frontend / UX: 4/5
 
-## Frontend / UX: 3/5
+**Evidence:** The application requires a cryptographically matched `personal_sign` session, invalidates authorization on account changes and soft disconnect, enforces Studionet chain ID `61999`, coordinates all writes through one page-wide pending-transaction owner, retains the same transaction hash across bounded reconciliation, validates finality/execution/readback, and exposes accessible modal focus containment and keyboard handling.
 
-**Evidence:** The Next.js application connects a browser wallet, enforces chain ID 61999 before writes, calls the contract, waits for finality, fetches the full transaction, normalizes current Studionet camel-case/snake-case/numeric receipt variants with contradiction rejection, validates every leader execution, performs exact contract readback, and rejects malformed records. With no valid address it displays `Deployment not configured` and disables actions.
+**Live proof:** `https://license-scope.vercel.app` is a production Vercel deployment under scope `gam9`. It returned HTTP `200` and rendered the exact accepted Studionet contract address.
 
-**Inspected:** `frontend/src/lib/genlayer.ts`, `frontend/src/lib/validation.ts`, request/resolve/retry components, `frontend/tests/validation.test.ts`, typecheck/lint/build output.
-
-**Remaining weakness:** The complete journeys have not yet been exercised against a successful, accepted Studionet deployment or deployed Vercel application.
+**Remaining weakness:** Provider-specific permission revocation, independent assistive-technology behavior, and multi-account application behavior have not been independently exercised in a controlled live session.
 
 ## Overall evidence-based assessment
 
-LicenseScope is a strong offline PRE_DEPLOY candidate with substantive GenLayer consensus behavior, fail-closed evidence handling, strict transaction/readback authority, and an explicit recovery model.
+LicenseScope has matching Studionet contract evidence, upgraded-source parity, successful terminal lifecycle evidence, a public GitHub repository, and a live Vercel frontend.
 
 ```text
-Submission recommendation: READY FOR ANONYMOUS PRE_DEPLOY RE-REVIEW — NOT AUTHORIZED FOR DEPLOYMENT
+Submission recommendation: READY FOR POST_GITHUB_VERCEL_FINAL EXACT-REVISION REVIEW
+Task status: NOT YET COMPLETE
 ```
 
-Codex `PRE_DEPLOY` technical verdict: `APPROVED` for the exact corrected source/evidence package named in the re-review handoff. This does not replace anonymous approval and does not authorize deployment.
-
-Current blocker before deployment:
-
-1. Fresh anonymous `PRE_DEPLOY` approval for the exact corrected revision and evidence package.
-2. Separate explicit user confirmation immediately before the Studionet deployment transaction.
-
-Deployment, GitHub push, Vercel release, live proof, and final scorecard are later checkpoints and do not count as current offline evidence.
+Remaining gates are the documentation-only exact-revision re-review, final public-link and pushed-revision verification, and the final anonymous completion checkpoint. No further contract deployment, upgrade, or wallet transaction is authorized.
