@@ -25,6 +25,7 @@ export default function Home() {
   const [assessmentLoadError, setAssessmentLoadError] = useState<string | null>(null);
 
   const isConfigured = isContractConfigured();
+  const closeSelectedRecord = useCallback(() => setSelectedRecord(null), []);
 
   const fetchAssessmentCountAndRecords = useCallback(async (): Promise<void> => {
     if (!isConfigured) return;
@@ -108,7 +109,7 @@ export default function Home() {
         {activeTab === 'security' && <SecuritySection />}
       </main>
 
-      <AssessmentDetailModal record={selectedRecord} onClose={() => setSelectedRecord(null)} />
+      <AssessmentDetailModal record={selectedRecord} onClose={closeSelectedRecord} />
     </div>
     </TransactionCoordinatorProvider>
   );

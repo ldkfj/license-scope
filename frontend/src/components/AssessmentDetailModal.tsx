@@ -1,8 +1,9 @@
 'use client';
 
-import React from 'react';
+import React, { useEffect, useRef } from 'react';
 import { X, ShieldCheck, FileJson, Cpu, Hash, User, Lock, CheckCircle, XCircle, HelpCircle } from 'lucide-react';
 import { AssessmentRecord, MatchTriState } from '@/lib/genlayer';
+import { handleModalKeyDown } from '@/lib/modalFocus';
 
 interface AssessmentDetailModalProps {
   record: AssessmentRecord | null;
@@ -10,6 +11,38 @@ interface AssessmentDetailModalProps {
 }
 
 export const AssessmentDetailModal: React.FC<AssessmentDetailModalProps> = ({ record, onClose }) => {
+  const rootRef = useRef<HTMLDivElement>(null);
+  const dialogRef = useRef<HTMLDivElement>(null);
+  const closeButtonRef = useRef<HTMLButtonElement>(null);
+
+  useEffect(() => {
+    if (!record || !rootRef.current || !dialogRef.current) return;
+    const root = rootRef.current;
+    const dialog = dialogRef.current;
+    const previousFocus = document.activeElement instanceof HTMLElement ? document.activeElement : null;
+    const background = Array.from(root.parentElement?.children ?? [])
+      .filter((element): element is HTMLElement => element instanceof HTMLElement && element !== root)
+      .map((element) => ({ element, inert: element.inert }));
+    background.forEach(({ element }) => { element.inert = true; });
+
+    const handleKeyDown = (event: KeyboardEvent) => {
+      const focusable = event.key === 'Tab'
+        ? Array.from(dialog.querySelectorAll<HTMLElement>(
+          'button:not([disabled]), [href], input:not([disabled]), select:not([disabled]), textarea:not([disabled]), [tabindex]:not([tabindex="-1"])',
+        ))
+        : [];
+      handleModalKeyDown(event, focusable, document.activeElement as HTMLElement | null, onClose);
+    };
+
+    document.addEventListener('keydown', handleKeyDown);
+    closeButtonRef.current?.focus();
+    return () => {
+      document.removeEventListener('keydown', handleKeyDown);
+      background.forEach(({ element, inert }) => { element.inert = inert; });
+      previousFocus?.focus();
+    };
+  }, [record, onClose]);
+
   if (!record) return null;
 
   const statusTone = record.status === 2 ? 'ok' : record.status === 4 ? 'err' : record.status === 1 ? 'pending' : 'warn';
@@ -39,8 +72,8 @@ export const AssessmentDetailModal: React.FC<AssessmentDetailModalProps> = ({ re
   };
 
   return (
-    <div className="ls-modal-root" role="presentation" onMouseDown={(event) => event.target === event.currentTarget && onClose()}>
-      <div className="ls-modal" role="dialog" aria-modal="true" aria-labelledby="assessment-detail-title">
+    <div ref={rootRef} className="ls-modal-root" role="presentation" onMouseDown={(event) => event.target === event.currentTarget && onClose()}>
+      <div ref={dialogRef} className="ls-modal" role="dialog" aria-modal="true" aria-labelledby="assessment-detail-title">
         <div className="ls-modal__head">
           <div className="min-w-0">
             <h3 id="assessment-detail-title" className="ls-modal__title flex items-center gap-2">
@@ -50,6 +83,7 @@ export const AssessmentDetailModal: React.FC<AssessmentDetailModalProps> = ({ re
             <p className="ls-modal__key">{record.canonical_key}</p>
           </div>
           <button
+            ref={closeButtonRef}
             type="button"
             onClick={onClose}
             className="ls-icon-btn shrink-0"

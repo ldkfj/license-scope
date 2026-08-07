@@ -25,13 +25,24 @@ test('connected wallet control exposes explicit change-account and disconnect ac
   assert.ok(permissionRequest >= 0 && reconnect > permissionRequest);
   assert.ok(revoke >= 0 && disconnectReadback > revoke);
   assert.ok(signatureRequest >= 0);
+  assert.match(genlayer, /recoverMessageAddress/);
+  assert.match(genlayer, /activeAccount !== normalizedAccount/);
   assert.match(genlayer, /sessionStorage\.setItem\(WALLET_DISCONNECTED_KEY, '1'\)/);
-  assert.match(genlayer, /sessionStorage\.setItem\(WALLET_SIGNED_ACCOUNT_KEY, account\.toLowerCase\(\)\)/);
+  assert.match(genlayer, /sessionStorage\.setItem\(WALLET_SIGNED_ACCOUNT_KEY, normalizedAccount\)/);
   assert.match(genlayer, /Connect and sign with your wallet from the LicenseScope header first/);
   assert.match(genlayer, /Wallet is disconnected in LicenseScope/);
   assert.match(navbar, /allowBrowserWalletConnection\(\)/);
   assert.match(navbar, /await signBrowserWalletConnection\(account\)/);
+  assert.match(navbar, /invalidateBrowserWalletConnectionSignature\(\)/);
   assert.match(navbar, /role="menu"/);
   assert.match(navbar, />\s*Change account\s*</);
   assert.match(navbar, />\s*Disconnect\s*</);
+});
+
+test('assessment dialog implements native modal keyboard and background containment', () => {
+  const modal = readFileSync(new URL('../src/components/AssessmentDetailModal.tsx', import.meta.url), 'utf8');
+  assert.match(modal, /handleModalKeyDown/);
+  assert.match(modal, /element\.inert = true/);
+  assert.match(modal, /closeButtonRef\.current\?\.focus\(\)/);
+  assert.match(modal, /previousFocus\?\.focus\(\)/);
 });

@@ -8,6 +8,7 @@ import {
   allowBrowserWalletConnection,
   isBrowserWalletDisconnected,
   isBrowserWalletConnectionSigned,
+  invalidateBrowserWalletConnectionSignature,
   signBrowserWalletConnection,
   suppressBrowserWalletConnection,
   reconnectWalletAndVerifyChain,
@@ -70,22 +71,25 @@ export const Navbar: React.FC<NavbarProps> = ({ activeTab, setActiveTab }) => {
       return () => window.clearTimeout(refreshTimer);
     }
 
-    const handleProviderChange = () => {
+    const handleAccountsChanged = () => {
+      invalidateBrowserWalletConnectionSignature();
       void refreshWalletState();
     };
-    ethereum.on('accountsChanged', handleProviderChange);
-    ethereum.on('chainChanged', handleProviderChange);
+    const handleChainChanged = () => void refreshWalletState();
+    ethereum.on('accountsChanged', handleAccountsChanged);
+    ethereum.on('chainChanged', handleChainChanged);
 
     return () => {
       window.clearTimeout(refreshTimer);
-      ethereum.removeListener?.('accountsChanged', handleProviderChange);
-      ethereum.removeListener?.('chainChanged', handleProviderChange);
+      ethereum.removeListener?.('accountsChanged', handleAccountsChanged);
+      ethereum.removeListener?.('chainChanged', handleChainChanged);
     };
   }, [refreshWalletState]);
 
   const handleConnectWallet = async (): Promise<void> => {
     setIsConnecting(true);
     setWalletError(null);
+    invalidateBrowserWalletConnectionSignature();
     allowBrowserWalletConnection();
     try {
       const account = await connectWalletAndVerifyChain(false);
@@ -105,6 +109,7 @@ export const Navbar: React.FC<NavbarProps> = ({ activeTab, setActiveTab }) => {
     setIsWalletMenuOpen(false);
     setIsConnecting(true);
     setWalletError(null);
+    invalidateBrowserWalletConnectionSignature();
     allowBrowserWalletConnection();
     try {
       const account = await reconnectWalletAndVerifyChain(false);

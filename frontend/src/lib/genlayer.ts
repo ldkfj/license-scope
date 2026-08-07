@@ -1,6 +1,7 @@
 import { createClient } from 'genlayer-js';
 import { studionet } from 'genlayer-js/chains';
-import type { ArtifactKind, AssessmentStatus, UseProfile } from './validation';
+import { recoverMessageAddress, type Hex } from 'viem';
+import type { ArtifactKind, AssessmentStatus, UseProfile } from './validation.ts';
 
 export {
   assertSameAssessmentIdentity,
@@ -8,14 +9,14 @@ export {
   formatRegistryReadError,
   parseAssessmentRecord,
   validateGenLayerReceipt,
-} from './validation';
+} from './validation.ts';
 export type {
   ArtifactKind,
   AssessmentRecord,
   AssessmentStatus,
   MatchTriState,
   UseProfile,
-} from './validation';
+} from './validation.ts';
 
 export const CONTRACT_ADDRESS = process.env.NEXT_PUBLIC_CONTRACT_ADDRESS || '';
 export const STUDIONET_RPC_URL = 'https://studio.genlayer.com/api';
@@ -61,6 +62,10 @@ export const suppressBrowserWalletConnection = (): void => {
   window.sessionStorage.removeItem(WALLET_SIGNED_ACCOUNT_KEY);
 };
 
+export const invalidateBrowserWalletConnectionSignature = (): void => {
+  if (typeof window !== 'undefined') window.sessionStorage.removeItem(WALLET_SIGNED_ACCOUNT_KEY);
+};
+
 export const isBrowserWalletConnectionSigned = (account: string): boolean =>
   typeof window !== 'undefined'
   && window.sessionStorage.getItem(WALLET_SIGNED_ACCOUNT_KEY) === account.toLowerCase();
@@ -69,6 +74,10 @@ export async function signBrowserWalletConnection(account: string): Promise<void
   if (typeof window === 'undefined') throw new Error('Window environment undefined.');
   const ethereum = (window as unknown as { ethereum?: EthereumProvider }).ethereum;
   if (!ethereum) throw new Error('MetaMask or Compatible Web3 Wallet is not installed in browser.');
+
+  const normalizedAccount = account.toLowerCase();
+  if (!/^0x[0-9a-f]{40}$/.test(normalizedAccount)) throw new Error('Wallet account address is invalid.');
+  invalidateBrowserWalletConnectionSignature();
 
   const nonce = globalThis.crypto?.randomUUID?.() ?? `${Date.now()}`;
   const message = [
@@ -83,7 +92,25 @@ export async function signBrowserWalletConnection(account: string): Promise<void
   if (typeof signature !== 'string' || !/^0x[0-9a-fA-F]{130}$/.test(signature)) {
     throw new Error('Wallet connection signature was missing or invalid.');
   }
-  window.sessionStorage.setItem(WALLET_SIGNED_ACCOUNT_KEY, account.toLowerCase());
+
+  let signer: string;
+  try {
+    signer = await recoverMessageAddress({
+      message: { raw: encodedMessage as Hex },
+      signature: signature as Hex,
+    });
+  } catch {
+    throw new Error('Wallet connection signature was invalid.');
+  }
+  if (signer.toLowerCase() !== normalizedAccount) throw new Error('Wallet signature does not match the active account.');
+
+  const activeAccounts = await ethereum.request({ method: 'eth_accounts' });
+  const activeAccount = Array.isArray(activeAccounts) && typeof activeAccounts[0] === 'string'
+    ? activeAccounts[0].toLowerCase()
+    : null;
+  if (activeAccount !== normalizedAccount) throw new Error('Wallet account changed while signing. Connect and sign again.');
+
+  window.sessionStorage.setItem(WALLET_SIGNED_ACCOUNT_KEY, normalizedAccount);
   window.sessionStorage.removeItem(WALLET_DISCONNECTED_KEY);
 }
 
