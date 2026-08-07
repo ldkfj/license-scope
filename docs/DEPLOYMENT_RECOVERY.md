@@ -3,11 +3,11 @@
 ## Gate status
 
 - Classification: `UPGRADABLE`
-- Checkpoint: `PRE_DEPLOY` upgrade-candidate re-review
+- Checkpoint: `POST_DEPLOY_TEST` in progress after authorized main-contract upgrade
 - Redeployment authorization: **CONSUMED** for transaction `0xd28ff503fa44f073ed4f741427a809fa6c1717bb1f05b64901828cb0b71705d5`
-- Current deployment: **FINALIZED with successful execution, but live evidence evaluation is blocked by the deployed web-response API mismatch**
+- Current deployment: **UPGRADED IN PLACE** with finalized successful execution, exact deployed-source parity, and preserved assessment state
 - Safe upgrade rehearsal: **COMPLETED** on disposable contract `0xF1FF7a9Faa9A9800237e945F97b69Ac837D30193`
-- Main-contract upgrade authorization: **NOT GRANTED**
+- Main-contract upgrade authorization: **CONSUMED** for transaction `0x002f06c175fc2ea35e4f8b99f2c2562105b952073d8460baed786c925ce3dbd6`
 
 The user selected one public wallet for both deployment and upgrade authority. No private key, seed phrase, token, credential, or wallet export belongs in this document.
 
@@ -20,10 +20,10 @@ The user selected one public wallet for both deployment and upgrade authority. N
 | RPC | `https://studio.genlayer.com/api` |
 | Explorer | `https://explorer-studio.genlayer.com/` |
 | Contract source | `contracts/license_scope.py` |
-| Contract source SHA-256 | `32e9a4b9f9d2e095e1a4504e0beec90ae46fabda1b2bdf9980921a922ee6b3a8` |
+| Contract source SHA-256 | `8afec2c2ce17e5542c3c5ca2343c8d454de48e27980273b1382fc621e1282890` |
 | Policy version | `LS-V1` |
 | Policy manifest hash | `sha256:1105b19ea7786bbd5ace24445845997e914e726cd2f80ddf83d8a6f8f8769532` |
-| Source-code commit | `6e9952d0402b9bac6a56806f90717d43c734428f` |
+| Reviewed evidence commit | `fd5ad56934856706ac1798e77fe194f214aadd43` |
 | Deployment wallet public address | `0x7885536194bbd6e1d0a6ab991ab215cfa9542339` |
 | External upgrader public address | `0x7885536194bbd6e1d0a6ab991ab215cfa9542339` |
 | Constructor arguments | `upgrader_address = 0x7885536194bbd6e1d0a6ab991ab215cfa9542339` |
@@ -43,13 +43,30 @@ The same wallet fills both roles. This concentrates deployment identity and code
 | Target contract | `0x8f1e48e52241E1B8b3320b953901ec7eeE481Ac7` |
 | Authorized upgrader if approved | `0x7885536194bbd6e1d0a6ab991ab215cfa9542339` |
 | Persistent storage layout change | None |
-| Root Slot upgrade transaction |  |
-| Upgrade authorization | **NOT GRANTED** |
+| Root Slot upgrade transaction | `0x002f06c175fc2ea35e4f8b99f2c2562105b952073d8460baed786c925ce3dbd6` |
+| Upgrade authorization | **CONSUMED** for the transaction above |
 | Disposable rehearsal contract | `0xF1FF7a9Faa9A9800237e945F97b69Ac837D30193` |
 | Disposable V1 deployment transaction | `0xda26ea0dc925a6b7c740ae2c503b5b6a869ad285ad2840a095e624b79225273a` |
 | Disposable V2 upgrade transaction | `0xca98a65e73c5c377924fc526dd76b7b35388b07e9eb88486f7b4c1d5674505e3` |
 
-The candidate uses `gl.nondet.web.request(url, method="GET")` and strictly normalizes the exact pinned runtime's `response.status` together with the documented `response.status_code` representation. Missing, invalid, boolean, out-of-range, or contradictory status values fail closed. It does not alter persistent fields, record layout, policy version/hash, authorization, state machine, retry limit, or upgrade logic. The safe rehearsal is complete. Fresh Codex and anonymous approval of the evidence-bearing exact revision, active-wallet verification, and explicit user confirmation are still required before the main contract can be upgraded.
+The installed source uses `gl.nondet.web.request(url, method="GET")` and strictly normalizes the exact pinned runtime's `response.status` together with the documented `response.status_code` representation. Missing, invalid, boolean, out-of-range, or contradictory status values fail closed. It does not alter persistent fields, record layout, policy version/hash, authorization, state machine, retry limit, or upgrade logic. The safe rehearsal and exact-revision review were completed before the user authorized the main-contract transaction.
+
+## Successful main-contract upgrade evidence
+
+- Transaction `0x002f06c175fc2ea35e4f8b99f2c2562105b952073d8460baed786c925ce3dbd6` reached `FINALIZED` with `MAJORITY_AGREE`; all five validator votes were `AGREE` and leader execution was `SUCCESS`.
+- Caller was the authorized upgrader `0x7885536194bbd6e1d0a6ab991ab215cfa9542339`; target was main contract `0x8f1e48e52241E1B8b3320b953901ec7eeE481Ac7`.
+- Live `gen_getContractCode` readback matched the exact reviewed candidate SHA-256 `8afec2c2ce17e5542c3c5ca2343c8d454de48e27980273b1382fc621e1282890`.
+- Post-upgrade readback preserved assessment count `1` and every checked field of assessment `#1`: immutable CoSearch subject/revision, requester, `LS-V1` policy binding, `UNRESOLVED / SOURCE_MISSING` status, endpoint-status explanation `0`, and retry count `1`.
+- The authorized final retry and following resolution completed successfully as the post-upgrade lifecycle evidence below.
+
+## Successful post-upgrade lifecycle evidence
+
+| Action | Transaction | Finalized execution/readback |
+|---|---|---|
+| Final retry for assessment `#1` | `0x1e245e426b4fe9e3242fb27351eddcece7b7a2680f8cc9c49858799a9fc41fdd` | `FINALIZED`, `MAJORITY_AGREE`, frontend validator `FINISHED_WITH_RETURN`; four `AGREE` and one quorum-cancelled `IDLE`; exact readback `PENDING`, retry count `2` |
+| Resolve after installed-source upgrade | `0x98a4739d8c7c02e271587c432d8d0419a68819a6cf51bd6522cedc522259c562` | `FINALIZED`, `MAJORITY_AGREE`, frontend validator `FINISHED_WITH_RETURN`; three `AGREE`, two `DISAGREE`; exact readback `BLOCK / EXPLICIT_USE_RESTRICTION`, subject/revision `EXACT`, `CC-BY-NC-4.0`, evidence sufficient, retry count `2` |
+
+The terminal readback references the immutable GitHub commit, root `LICENSE`, and root `README.md`. It identifies the non-commercial restriction as incompatible with `COMMERCIAL_INFERENCE`, demonstrating that the installed dual-shape web-status repair resolves the former false `SOURCE_MISSING` path.
 
 ## Successful redeployment core evidence
 
@@ -61,7 +78,7 @@ The candidate uses `gl.nondet.web.request(url, method="GET")` and strictly norma
 - Transaction-generated and user-reported contract address both equal `0x8f1e48e52241E1B8b3320b953901ec7eeE481Ac7`.
 - Embedded deployment source and live `gen_getContractCode` readback are byte-for-byte equal to the reviewed local contract; SHA-256 is `32e9a4b9f9d2e095e1a4504e0beec90ae46fabda1b2bdf9980921a922ee6b3a8`.
 - Initial readback: `get_assessment_count() == 0`; `get_policy_profile("COMMERCIAL_INFERENCE")` returned `LS-V1`, the reviewed policy hash, `allows_commercial: true`, and supported kind `GITHUB_REPO`.
-- Full lifecycle success on the main contract, multi-account application behavior, and Explorer evidence remain pending and are not implied by this core acceptance. The completed disposable rehearsal is recorded separately below and does not authorize the main-contract upgrade.
+- Multi-account application behavior and complete Explorer evidence remain pending and are not implied by this historical core-deployment acceptance. The later authorized main-contract upgrade and successful lifecycle are recorded above.
 
 ## Failed deployment reconciliation
 

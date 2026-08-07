@@ -40,6 +40,8 @@ SPECIFICATION.md
 frontend/AGENTS.md
 frontend/CLAUDE.md
 frontend/README.md
+frontend/DESIGN.md
+frontend/.hallmark/
 
 # Unused framework starter assets
 frontend/public/file.svg

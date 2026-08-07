@@ -13,6 +13,7 @@ import {
   getClient,
   CONTRACT_ADDRESS,
   parseAssessmentRecord,
+  formatRegistryReadError,
 } from '@/lib/genlayer';
 import { TransactionCoordinatorProvider } from '@/lib/transactionCoordinator';
 
@@ -20,12 +21,16 @@ export default function Home() {
   const [activeTab, setActiveTab] = useState<'request' | 'registry' | 'security'>('request');
   const [assessments, setAssessments] = useState<AssessmentRecord[]>([]);
   const [selectedRecord, setSelectedRecord] = useState<AssessmentRecord | null>(null);
+  const [isLoadingAssessments, setIsLoadingAssessments] = useState(false);
+  const [assessmentLoadError, setAssessmentLoadError] = useState<string | null>(null);
 
   const isConfigured = isContractConfigured();
 
   const fetchAssessmentCountAndRecords = useCallback(async (): Promise<void> => {
     if (!isConfigured) return;
 
+    setIsLoadingAssessments(true);
+    setAssessmentLoadError(null);
     try {
       const client = getClient();
       const countBigInt = (await client.readContract({
@@ -50,6 +55,9 @@ export default function Home() {
       setAssessments(fetched.reverse());
     } catch (err) {
       console.error('Failed fetching assessment records:', err);
+      setAssessmentLoadError(formatRegistryReadError(err));
+    } finally {
+      setIsLoadingAssessments(false);
     }
   }, [isConfigured]);
 
@@ -68,19 +76,21 @@ export default function Home() {
 
   return (
     <TransactionCoordinatorProvider contractAddress={CONTRACT_ADDRESS}>
-    <div className="min-h-screen bg-slate-950 text-slate-100 font-sans antialiased selection:bg-cyan-500 selection:text-white">
+    <div className="ls-app">
       <Navbar activeTab={activeTab} setActiveTab={setActiveTab} />
 
-      <main className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8 space-y-8">
+      <main className="ls-main">
         <ContractStatusBanner />
 
         {activeTab === 'request' && (
-          <div className="space-y-8">
+          <div className="flex flex-col gap-[var(--space-md)] min-w-0">
             <RequestAssessmentForm onTransactionSuccess={fetchAssessmentCountAndRecords} />
             <AssessmentList
               assessments={assessments}
               onSelectRecord={setSelectedRecord}
               onRefresh={fetchAssessmentCountAndRecords}
+              isLoading={isLoadingAssessments}
+              loadError={assessmentLoadError}
             />
           </div>
         )}
@@ -90,6 +100,8 @@ export default function Home() {
             assessments={assessments}
             onSelectRecord={setSelectedRecord}
             onRefresh={fetchAssessmentCountAndRecords}
+            isLoading={isLoadingAssessments}
+            loadError={assessmentLoadError}
           />
         )}
 

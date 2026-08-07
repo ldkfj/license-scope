@@ -203,212 +203,212 @@ export const RequestAssessmentForm: React.FC<RequestAssessmentFormProps> = ({
   const explorerLink = getExplorerTxLink(txHash);
 
   return (
-    <div className="bg-slate-900/60 border border-slate-800 rounded-2xl p-6 backdrop-blur-xl shadow-2xl space-y-6">
-      <div className="flex items-center justify-between">
-        <div className="flex items-center gap-3">
-          <div className="w-10 h-10 rounded-xl bg-cyan-950 border border-cyan-800/50 flex items-center justify-center text-cyan-400">
-            <Shield className="w-5 h-5" />
-          </div>
-          <div>
-            <h2 className="text-lg font-bold text-white">Submit License Attestation Request</h2>
-            <p className="text-xs text-slate-400">
-              Register a code repository or artifact for Intelligent Contract consensus rights evaluation.
-            </p>
-          </div>
+    <section className="ls-panel" aria-labelledby="request-attestation-heading">
+      <div className="ls-panel__head">
+        <div className="min-w-0">
+          <h2 id="request-attestation-heading" className="ls-panel__title">
+            <Shield className="w-5 h-5 ls-panel__title-icon" aria-hidden="true" />
+            Submit License Attestation Request
+          </h2>
+          <p className="ls-panel__desc">
+            Register a code repository or artifact for Intelligent Contract consensus rights evaluation.
+          </p>
         </div>
       </div>
 
-      {!isConfigured && (
-        <div className="p-4 bg-amber-950/40 border border-amber-500/30 rounded-xl text-amber-300 text-xs flex items-center gap-3 font-mono">
-          <AlertCircle className="w-5 h-5 shrink-0 text-amber-400" />
-          <div>
-            <div className="font-bold">Deployment not configured</div>
-            <div className="text-[11px] text-amber-400/80 mt-0.5">
-              Designed for GenLayer Studionet; set NEXT_PUBLIC_CONTRACT_ADDRESS in .env.local to enable interactive Attestation requests.
+      <div className="flex flex-col gap-[var(--space-sm)]">
+        {!isConfigured && (
+          <div className="ls-alert ls-alert--warn" role="status">
+            <AlertCircle className="w-4 h-4 shrink-0" aria-hidden="true" />
+            <div className="ls-alert__body">
+              <div className="font-semibold">Deployment not configured</div>
+              <div className="mt-0.5 opacity-90">
+                Designed for GenLayer Studionet; set NEXT_PUBLIC_CONTRACT_ADDRESS in .env.local to enable interactive Attestation requests.
+              </div>
             </div>
           </div>
-        </div>
-      )}
+        )}
 
-      {errorMsg && (
-        <div className="p-4 bg-rose-950/50 border border-rose-500/30 rounded-xl text-rose-300 text-xs flex items-center gap-3 font-mono">
-          <AlertCircle className="w-5 h-5 shrink-0 text-rose-400" />
-          <div className="flex-1">{errorMsg}</div>
-          <button onClick={() => setErrorMsg(null)} className="text-rose-400 hover:text-white">
-            Dismiss
-          </button>
-        </div>
-      )}
+        {errorMsg && (
+          <div className="ls-alert ls-alert--err" role="alert">
+            <AlertCircle className="w-4 h-4 shrink-0" aria-hidden="true" />
+            <div className="ls-alert__body">{errorMsg}</div>
+            <button type="button" onClick={() => setErrorMsg(null)} className="ls-btn ls-btn--danger-text">
+              Dismiss
+            </button>
+          </div>
+        )}
 
-      {coordinatorError && !errorMsg && (
-        <div className="p-4 bg-rose-950/50 border border-rose-500/30 rounded-xl text-rose-300 text-xs font-mono">
-          Shared transaction coordinator blocked: {coordinatorError}
-        </div>
-      )}
+        {coordinatorError && !errorMsg && (
+          <div className="ls-alert ls-alert--err" role="alert">
+            <AlertCircle className="w-4 h-4 shrink-0" aria-hidden="true" />
+            <div className="ls-alert__body">Shared transaction coordinator blocked: {coordinatorError}</div>
+          </div>
+        )}
 
-      {statusMsg && !errorMsg && (
-        <div className="p-4 bg-cyan-950/40 border border-cyan-500/30 rounded-xl text-cyan-300 text-xs flex items-center gap-3 font-mono">
-          <CheckCircle2 className="w-5 h-5 shrink-0 text-cyan-400 animate-pulse" />
-          <div>
-            <div className="font-bold">{statusMsg}</div>
-            {txHash && (
-              <div className="text-[10px] text-slate-400 mt-1 break-all flex items-center gap-2">
-                <span>Tx Hash: {txHash}</span>
-                {explorerLink && (
-                  <a
-                    href={explorerLink}
-                    target="_blank"
-                    rel="noopener noreferrer"
-                    className="text-cyan-400 hover:underline flex items-center gap-1"
+        {statusMsg && !errorMsg && (
+          <div className="ls-alert ls-alert--info" role="status" aria-live="polite">
+            <CheckCircle2 className="w-4 h-4 shrink-0" aria-hidden="true" />
+            <div className="ls-alert__body">
+              <div className="font-semibold">{statusMsg}</div>
+              {txHash && (
+                <div className="mt-1 text-[0.6875rem] opacity-90 break-all flex flex-wrap items-center gap-2">
+                  <span>Tx Hash: {txHash}</span>
+                  {explorerLink && (
+                    <a
+                      href={explorerLink}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="ls-link"
+                    >
+                      Explorer <ExternalLink className="w-3 h-3" aria-hidden="true" />
+                    </a>
+                  )}
+                </div>
+              )}
+            </div>
+          </div>
+        )}
+
+        {pendingTx && (
+          <div className="ls-alert ls-alert--warn" role="status">
+            <AlertCircle className="w-4 h-4 shrink-0" aria-hidden="true" />
+            <div className="ls-alert__body min-w-0">
+              Pending {pendingTx.action} transaction: {pendingTx.hash}. New writes are locked until this hash is reconciled.
+            </div>
+            {pendingTx.action === 'request' && (
+              <div className="ls-alert__actions">
+                {loading && (
+                  <button
+                    type="button"
+                    onClick={() => reconciliationController.current?.abort()}
+                    className="ls-btn ls-btn--secondary ls-btn--sm"
                   >
-                    Explorer <ExternalLink className="w-3 h-3" />
-                  </a>
+                    Stop tracking
+                  </button>
                 )}
+                <button
+                  type="button"
+                  disabled={loading}
+                  onClick={handleResume}
+                  className="ls-btn ls-btn--warn ls-btn--sm"
+                >
+                  Resume existing Tx
+                </button>
               </div>
             )}
           </div>
-        </div>
-      )}
+        )}
 
-      {pendingTx && (
-        <div className="p-4 bg-amber-950/40 border border-amber-500/30 rounded-xl text-amber-200 text-xs font-mono flex items-center justify-between gap-3">
-          <span>
-            Pending {pendingTx.action} transaction: {pendingTx.hash}. New writes are locked until this hash is reconciled.
-          </span>
-          {pendingTx.action === 'request' && (
-            <div className="shrink-0 flex gap-2">
-              {loading && (
-                <button type="button" onClick={() => reconciliationController.current?.abort()} className="px-3 py-2 rounded-lg bg-slate-700 hover:bg-slate-600 text-white">
-                  Stop tracking
-                </button>
-              )}
-              <button type="button" disabled={loading} onClick={handleResume} className="px-3 py-2 rounded-lg bg-amber-600 hover:bg-amber-500 text-white disabled:opacity-40">
-                Resume existing Tx
-              </button>
-            </div>
-          )}
-        </div>
-      )}
-
-      <form onSubmit={handleSubmit} className="space-y-6">
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-          {/* Artifact Kind */}
-          <div className="space-y-2">
-            <label className="text-xs font-semibold text-slate-300 block uppercase tracking-wider">
-              Artifact Kind
-            </label>
-            <select
-              disabled={!isConfigured || loading}
-              value={artifactKind}
-              onChange={(e) => setArtifactKind(e.target.value as ArtifactKind)}
-              className="w-full bg-slate-950 border border-slate-700 rounded-xl px-3 py-2 text-xs text-white focus:ring-2 focus:ring-cyan-500 focus:outline-none disabled:opacity-40"
-            >
-              <option value="GITHUB_REPO">GITHUB_REPO (Supported)</option>
-              <option value="HF_MODEL" disabled>
-                HF_MODEL (Unsupported in V1)
-              </option>
-              <option value="HF_DATASET" disabled>
-                HF_DATASET (Unsupported in V1)
-              </option>
-            </select>
-          </div>
-
-          {/* Namespace */}
-          <div className="space-y-2">
-            <label className="text-xs font-semibold text-slate-300 block uppercase tracking-wider">
-              Namespace / Owner
-            </label>
-            <input
-              type="text"
-              disabled={!isConfigured || loading}
-              placeholder="e.g. facebookresearch"
-              value={namespace}
-              onChange={(e) => setNamespace(e.target.value)}
-              className="w-full bg-slate-950 border border-slate-700 rounded-xl px-3 py-2 text-xs text-white placeholder-slate-600 focus:ring-2 focus:ring-cyan-500 focus:outline-none disabled:opacity-40"
-            />
-          </div>
-
-          {/* Repository / Artifact Name */}
-          <div className="space-y-2">
-            <label className="text-xs font-semibold text-slate-300 block uppercase tracking-wider">
-              Repository / Name
-            </label>
-            <input
-              type="text"
-              disabled={!isConfigured || loading}
-              placeholder="e.g. llama"
-              value={name}
-              onChange={(e) => setName(e.target.value)}
-              className="w-full bg-slate-950 border border-slate-700 rounded-xl px-3 py-2 text-xs text-white placeholder-slate-600 focus:ring-2 focus:ring-cyan-500 focus:outline-none disabled:opacity-40"
-            />
-          </div>
-        </div>
-
-        {/* Revision SHA */}
-        <div className="space-y-2">
-          <label className="text-xs font-semibold text-slate-300 block uppercase tracking-wider">
-            Git Commit SHA (40 Hex Chars)
-          </label>
-          <input
-            type="text"
-            disabled={!isConfigured || loading}
-            placeholder="e.g. a1b2c3d4e5f60718293a4b5c6d7e8f9012345678"
-            value={revision}
-            onChange={(e) => setRevision(e.target.value)}
-            className="w-full bg-slate-950 border border-slate-700 rounded-xl px-3 py-2 text-xs text-white font-mono placeholder-slate-600 focus:ring-2 focus:ring-cyan-500 focus:outline-none disabled:opacity-40"
-          />
-        </div>
-
-        {/* Intended Use Profile */}
-        <div className="space-y-2">
-          <label className="text-xs font-semibold text-slate-300 block uppercase tracking-wider">
-            Intended Use Profile
-          </label>
-          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-            {USE_PROFILES.map((prof) => (
-              <label
-                key={prof.id}
-                className={`p-3 rounded-xl border cursor-pointer transition-all flex items-start gap-3 ${
-                  useProfile === prof.id
-                    ? 'bg-cyan-950/50 border-cyan-500/80 text-white'
-                    : 'bg-slate-950/40 border-slate-800 text-slate-400 hover:border-slate-700'
-                } ${!isConfigured || loading ? 'opacity-40 cursor-not-allowed' : ''}`}
+        <form onSubmit={handleSubmit} className="ls-form">
+          <div className="ls-field-grid">
+            <div className="ls-field">
+              <label htmlFor="artifact-kind" className="ls-label">Artifact kind</label>
+              <select
+                id="artifact-kind"
+                disabled={!isConfigured || loading}
+                value={artifactKind}
+                onChange={(e) => setArtifactKind(e.target.value as ArtifactKind)}
+                className="ls-select"
               >
-                <input
-                  type="radio"
-                  name="useProfile"
-                  disabled={!isConfigured || loading}
-                  checked={useProfile === prof.id}
-                  onChange={() => setUseProfile(prof.id)}
-                  className="mt-0.5 text-cyan-500 focus:ring-cyan-500"
-                />
-                <div>
-                  <div className="text-xs font-semibold text-slate-200">{prof.label}</div>
-                  <div className="text-[11px] text-slate-400 mt-0.5">{prof.desc}</div>
-                </div>
-              </label>
-            ))}
-          </div>
-        </div>
+                <option value="GITHUB_REPO">GITHUB_REPO (Supported)</option>
+                <option value="HF_MODEL" disabled>
+                  HF_MODEL (Unsupported in V1)
+                </option>
+                <option value="HF_DATASET" disabled>
+                  HF_DATASET (Unsupported in V1)
+                </option>
+              </select>
+            </div>
 
-        <button
-          type="submit"
-          disabled={!isConfigured || loading || coordinatorState.phase !== 'idle'}
-          className="w-full bg-gradient-to-r from-cyan-600 to-indigo-600 hover:from-cyan-500 hover:to-indigo-500 text-white py-3 rounded-xl font-semibold text-xs transition-all flex items-center justify-center gap-2 shadow-lg shadow-cyan-600/20 disabled:opacity-40 disabled:cursor-not-allowed"
-        >
-          {loading ? (
-            <span className="flex items-center gap-2">
-              <span className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin" />
-              Processing Transaction...
-            </span>
-          ) : (
-            <span className="flex items-center gap-2">
-              <Send className="w-4 h-4" />
-              Submit Attestation Request on Studionet
-            </span>
-          )}
-        </button>
-      </form>
-    </div>
+            <div className="ls-field">
+              <label htmlFor="namespace" className="ls-label">Namespace / owner</label>
+              <input
+                id="namespace"
+                type="text"
+                disabled={!isConfigured || loading}
+                placeholder="e.g. facebookresearch"
+                value={namespace}
+                onChange={(e) => setNamespace(e.target.value)}
+                className="ls-input"
+                autoComplete="off"
+              />
+            </div>
+
+            <div className="ls-field">
+              <label htmlFor="repo-name" className="ls-label">Repository / name</label>
+              <input
+                id="repo-name"
+                type="text"
+                disabled={!isConfigured || loading}
+                placeholder="e.g. llama"
+                value={name}
+                onChange={(e) => setName(e.target.value)}
+                className="ls-input"
+                autoComplete="off"
+              />
+            </div>
+          </div>
+
+          <div className="ls-field">
+            <label htmlFor="revision-sha" className="ls-label">Git commit SHA (40 hex chars)</label>
+            <input
+              id="revision-sha"
+              type="text"
+              disabled={!isConfigured || loading}
+              placeholder="e.g. a1b2c3d4e5f60718293a4b5c6d7e8f9012345678"
+              value={revision}
+              onChange={(e) => setRevision(e.target.value)}
+              className="ls-input ls-input--mono"
+              spellCheck={false}
+              autoComplete="off"
+              inputMode="text"
+            />
+          </div>
+
+          <fieldset className="ls-field border-0 p-0 m-0">
+            <legend className="ls-label mb-[var(--space-2xs)]">Intended use profile</legend>
+            <div className="ls-radio-grid">
+              {USE_PROFILES.map((prof) => (
+                <label
+                  key={prof.id}
+                  className={`ls-radio${useProfile === prof.id ? ' is-selected' : ''}${!isConfigured || loading ? ' is-disabled' : ''}`}
+                >
+                  <input
+                    type="radio"
+                    name="useProfile"
+                    disabled={!isConfigured || loading}
+                    checked={useProfile === prof.id}
+                    onChange={() => setUseProfile(prof.id)}
+                  />
+                  <div className="min-w-0">
+                    <div className="ls-radio__label">{prof.label}</div>
+                    <div className="ls-radio__desc">{prof.desc}</div>
+                  </div>
+                </label>
+              ))}
+            </div>
+          </fieldset>
+
+          <button
+            type="submit"
+            disabled={!isConfigured || loading || coordinatorState.phase !== 'idle'}
+            className="ls-btn ls-btn--primary ls-btn--block"
+          >
+            {loading ? (
+              <span className="flex items-center gap-2">
+                <span className="ls-spinner" aria-hidden="true" />
+                Processing transaction…
+              </span>
+            ) : (
+              <span className="flex items-center gap-2">
+                <Send className="w-4 h-4" aria-hidden="true" />
+                Submit Attestation Request on Studionet
+              </span>
+            )}
+          </button>
+        </form>
+      </div>
+    </section>
   );
 };

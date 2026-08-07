@@ -32,6 +32,14 @@ export interface AssessmentRecord {
   retry_count: number;
 }
 
+export const formatRegistryReadError = (error: unknown): string => {
+  const message = error instanceof Error ? error.message : String(error);
+  if (/rate limit|429|500 requests per hour/i.test(message)) {
+    return 'Studionet RPC rate limit reached. Wait, then retry this read; no transaction was sent.';
+  }
+  return 'Unable to load assessment records from Studionet RPC. Retry this read; do not submit a duplicate transaction.';
+};
+
 const ARTIFACT_KINDS = new Set<ArtifactKind>(['GITHUB_REPO', 'HF_MODEL', 'HF_DATASET']);
 const USE_PROFILES = new Set<UseProfile>([
   'INTERNAL_RESEARCH',

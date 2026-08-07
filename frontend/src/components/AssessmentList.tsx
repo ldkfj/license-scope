@@ -4,7 +4,6 @@ import React, { useRef, useState } from 'react';
 import { Layers, RefreshCw, Eye, Play, RotateCcw, Search, CheckCircle2, XCircle, HelpCircle, ExternalLink } from 'lucide-react';
 import {
   AssessmentRecord,
-  STATUS_MAP,
   isContractConfigured,
   getClient,
   CONTRACT_ADDRESS,
@@ -28,12 +27,16 @@ interface AssessmentListProps {
   assessments: AssessmentRecord[];
   onSelectRecord: (record: AssessmentRecord) => void;
   onRefresh: () => Promise<void>;
+  isLoading: boolean;
+  loadError: string | null;
 }
 
 export const AssessmentList: React.FC<AssessmentListProps> = ({
   assessments,
   onSelectRecord,
   onRefresh,
+  isLoading,
+  loadError,
 }) => {
   const { coordinator, state: coordinatorState } = useTransactionCoordinator();
   const [searchTerm, setSearchTerm] = useState('');
@@ -266,117 +269,195 @@ export const AssessmentList: React.FC<AssessmentListProps> = ({
   const renderMatchBadge = (state: MatchTriState) => {
     if (state === 'EXACT') {
       return (
-        <span className="text-emerald-400 flex items-center gap-1 font-mono text-[11px]">
+        <span className="ls-status ls-status--ok">
           <CheckCircle2 className="w-3.5 h-3.5 shrink-0" />
           EXACT
         </span>
       );
     } else if (state === 'MISMATCH') {
       return (
-        <span className="text-rose-400 flex items-center gap-1 font-mono text-[11px]">
+        <span className="ls-status ls-status--err">
           <XCircle className="w-3.5 h-3.5 shrink-0" />
           MISMATCH
         </span>
       );
     }
     return (
-      <span className="text-amber-400 flex items-center gap-1 font-mono text-[11px]">
+      <span className="ls-status ls-status--warn">
         <HelpCircle className="w-3.5 h-3.5 shrink-0" />
         NOT EVALUATED
       </span>
     );
   };
 
+  const statusTone = (status: number) => {
+    if (status === 2) return 'ok';
+    if (status === 4) return 'err';
+    if (status === 1) return 'pending';
+    return 'warn';
+  };
+
+  const renderActions = (rec: AssessmentRecord) => {
+    const actionIsLoading = actionLoadingId === rec.assessment_id;
+    const isMatchingPending = pendingTx !== null
+      && pendingTx.action !== 'request'
+      && pendingTx.payload.assessmentId === rec.assessment_id;
+
+    return (
+      <>
+        {isMatchingPending && (
+          <button
+            disabled={!isConfigured || actionIsLoading}
+            onClick={(e) => void resumePendingAssessment(e, rec)}
+            className="ls-btn ls-btn--warn ls-btn--sm"
+          >
+            <RotateCcw className="w-3 h-3" /> Resume Tx
+          </button>
+        )}
+        {!isMatchingPending && rec.status === 1 && (
+          <button
+            disabled={!isConfigured || actionIsLoading || coordinatorState.phase !== 'idle'}
+            onClick={(e) => void handleResolve(e, rec)}
+            className="ls-btn ls-btn--primary ls-btn--sm"
+          >
+            <Play className="w-3 h-3" /> Resolve
+          </button>
+        )}
+        {!isMatchingPending && rec.status === 5 && rec.retry_count < 2 && (
+          <button
+            disabled={!isConfigured || actionIsLoading || coordinatorState.phase !== 'idle'}
+            onClick={(e) => void handleRetry(e, rec)}
+            className="ls-btn ls-btn--secondary ls-btn--sm"
+          >
+            <RotateCcw className="w-3 h-3" /> Retry ({rec.retry_count}/2)
+          </button>
+        )}
+        <button
+          type="button"
+          onClick={(e) => {
+            e.stopPropagation();
+            onSelectRecord(rec);
+          }}
+          className="ls-btn ls-btn--ghost ls-btn--sm"
+        >
+          <Eye className="w-3 h-3" /> Detail
+        </button>
+      </>
+    );
+  };
+
   const explorerLink = getExplorerTxLink(activeTxHash);
 
   return (
-    <div className="bg-slate-900/60 border border-slate-800 rounded-2xl p-6 backdrop-blur-xl shadow-2xl space-y-6">
-      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+    <section className="ls-panel">
+      <div className="ls-panel__head">
         <div>
-          <h2 className="text-xl font-bold text-white flex items-center gap-2">
-            <Layers className="w-5 h-5 text-indigo-400" />
+          <h2 className="ls-panel__title">
+            <Layers className="ls-panel__title-icon w-5 h-5" />
             Rights Assessment Registry
           </h2>
-          <p className="text-xs text-slate-400 mt-1">
+          <p className="ls-panel__desc">
             Registered Intelligent Contract assessment records and consensus verdicts.
           </p>
         </div>
 
-        <div className="flex items-center gap-3">
-          <div className="relative">
-            <Search className="w-4 h-4 text-slate-500 absolute left-3 top-2.5" />
+        <div className="ls-toolbar">
+          <div className="ls-search">
+            <Search className="ls-search__icon w-4 h-4" />
             <input
               type="text"
               placeholder="Search by repo, SHA, or key..."
               value={searchTerm}
               onChange={(e) => setSearchTerm(e.target.value)}
-              className="bg-slate-950 border border-slate-700 text-white rounded-xl pl-9 pr-3 py-1.5 text-xs focus:ring-2 focus:ring-cyan-500 focus:outline-none placeholder-slate-600 w-48 sm:w-64"
+              className="ls-search__input"
             />
           </div>
 
           <button
-            onClick={() => onRefresh()}
-            disabled={!isConfigured}
-            className="p-2 bg-slate-800 hover:bg-slate-700 text-slate-300 rounded-xl text-xs flex items-center justify-center transition-colors disabled:opacity-40"
+            onClick={() => void onRefresh()}
+            disabled={!isConfigured || isLoading}
+            className="ls-icon-btn"
             title="Refresh Registry"
+            aria-label="Refresh assessment registry"
           >
-            <RefreshCw className="w-4 h-4" />
+            {isLoading ? <span className="ls-spinner ls-spinner--accent" /> : <RefreshCw className="w-4 h-4" />}
           </button>
         </div>
       </div>
 
       {statusMsg && !errorMsg && (
-        <div className="p-3 bg-cyan-950/50 border border-cyan-500/30 rounded-xl text-cyan-300 text-xs font-mono space-y-1">
+        <div className="ls-alert ls-alert--info">
+          <div className="ls-alert__body">
           <div>{statusMsg}</div>
           {activeTxHash && (
-            <div className="text-[11px] text-slate-400 flex items-center gap-2">
+            <div className="flex flex-wrap items-center gap-2 mt-1">
               <span>Tx Hash: {activeTxHash}</span>
               {explorerLink && (
                 <a
                   href={explorerLink}
                   target="_blank"
                   rel="noopener noreferrer"
-                  className="text-cyan-400 hover:underline flex items-center gap-1"
+                  className="ls-link"
                 >
                   Explorer <ExternalLink className="w-3 h-3" />
                 </a>
               )}
             </div>
           )}
+          </div>
         </div>
       )}
 
       {errorMsg && (
-        <div className="p-3 bg-rose-950/50 border border-rose-500/30 rounded-xl text-rose-300 text-xs flex items-center justify-between font-mono">
-          <span>{errorMsg}</span>
-          <button onClick={() => setErrorMsg(null)} className="text-rose-400 hover:text-white">
+        <div className="ls-alert ls-alert--err">
+          <span className="ls-alert__body">{errorMsg}</span>
+          <button onClick={() => setErrorMsg(null)} className="ls-btn ls-btn--danger-text">
             Dismiss
           </button>
         </div>
       )}
 
       {coordinatorError && !errorMsg && (
-        <div className="p-3 bg-rose-950/50 border border-rose-500/30 rounded-xl text-rose-300 text-xs font-mono">
+        <div className="ls-alert ls-alert--err">
           Shared transaction coordinator blocked: {coordinatorError}
         </div>
       )}
 
+      {loadError && (
+        <div role="alert" className="ls-alert ls-alert--err">
+          <span className="ls-alert__body">{loadError}</span>
+          <button
+            type="button"
+            onClick={() => void onRefresh()}
+            disabled={isLoading}
+            className="ls-btn ls-btn--secondary ls-btn--sm"
+          >
+            Retry read
+          </button>
+        </div>
+      )}
+
       {pendingTx && (
-        <div className="p-3 bg-amber-950/40 border border-amber-500/30 rounded-xl text-amber-200 text-xs font-mono flex items-center justify-between gap-3">
-          <span>Pending {pendingTx.action} transaction: {pendingTx.hash}. All new writes are locked; resume the same hash from its matching action.</span>
+        <div className="ls-alert ls-alert--warn">
+          <span className="ls-alert__body">Pending {pendingTx.action} transaction: {pendingTx.hash}. All new writes are locked; resume the same hash from its matching action.</span>
           {actionLoadingId !== null && pendingTx.action !== 'request' && (
-            <button type="button" onClick={() => reconciliationController.current?.abort()} className="shrink-0 px-3 py-2 rounded-lg bg-slate-700 hover:bg-slate-600 text-white">
+            <button type="button" onClick={() => reconciliationController.current?.abort()} className="ls-btn ls-btn--secondary ls-btn--sm">
               Stop tracking
             </button>
           )}
         </div>
       )}
 
-      {filteredAssessments.length === 0 ? (
-        <div className="text-center py-12 bg-slate-950/40 rounded-xl border border-slate-800/80 space-y-2">
-          <Layers className="w-8 h-8 text-slate-600 mx-auto" />
-          <h3 className="text-sm font-semibold text-slate-300">No Assessment Records Found</h3>
-          <p className="text-xs text-slate-500 max-w-sm mx-auto">
+      {loadError && assessments.length === 0 ? null : isLoading && assessments.length === 0 ? (
+        <div className="ls-empty" role="status">
+          <span className="ls-spinner ls-spinner--accent mx-auto" />
+          <h3 className="ls-empty__title">Loading Assessment Records</h3>
+        </div>
+      ) : filteredAssessments.length === 0 ? (
+        <div className="ls-empty">
+          <Layers className="w-8 h-8 mx-auto" />
+          <h3 className="ls-empty__title">No Assessment Records Found</h3>
+          <p className="ls-empty__desc">
             {!isConfigured
               ? 'Contract is not configured. Configure NEXT_PUBLIC_CONTRACT_ADDRESS in .env.local.'
               : assessments.length > 0
@@ -385,96 +466,42 @@ export const AssessmentList: React.FC<AssessmentListProps> = ({
           </p>
         </div>
       ) : (
-        <div className="overflow-x-auto">
-          <table className="w-full text-left text-xs border-collapse">
+        <>
+        <div className="ls-table-wrap">
+          <table className="ls-table">
             <thead>
-              <tr className="border-b border-slate-800 text-slate-400 font-semibold uppercase tracking-wider text-[10px] bg-slate-950/40">
-                <th className="py-3 px-4">ID</th>
-                <th className="py-3 px-4">Artifact / Repo</th>
-                <th className="py-3 px-4">Revision SHA</th>
-                <th className="py-3 px-4">Profile</th>
-                <th className="py-3 px-4">Subject Match</th>
-                <th className="py-3 px-4">Verdict Status</th>
-                <th className="py-3 px-4 text-right">Actions</th>
+              <tr>
+                <th>ID</th><th>Artifact / Repo</th><th>Revision SHA</th><th>Profile</th>
+                <th>Subject Match</th><th>Verdict Status</th><th>Actions</th>
               </tr>
             </thead>
-            <tbody className="divide-y divide-slate-800/60">
+            <tbody>
               {filteredAssessments.map((rec) => {
-                const statusMeta = STATUS_MAP[rec.status] || {
-                  name: rec.status_name,
-                  badgeClass: 'bg-slate-800 text-slate-400 border-slate-700',
-                };
-
-                const isLoading = actionLoadingId === rec.assessment_id;
-                const isMatchingPending = pendingTx !== null
-                  && pendingTx.action !== 'request'
-                  && pendingTx.payload.assessmentId === rec.assessment_id;
-
                 return (
                   <tr
                     key={rec.assessment_id}
                     onClick={() => onSelectRecord(rec)}
-                    className="hover:bg-slate-800/30 transition-colors cursor-pointer"
                   >
-                    <td className="py-3 px-4 font-mono font-bold text-slate-300">#{rec.assessment_id}</td>
-                    <td className="py-3 px-4 font-semibold text-slate-200">
+                    <td className="ls-table__mono">#{rec.assessment_id}</td>
+                    <td>
                       <div>
                         {rec.namespace}/{rec.name}
                       </div>
-                      <div className="text-[10px] text-slate-500 font-normal">{rec.artifact_kind}</div>
+                      <div className="text-[10px] text-[var(--color-muted)]">{rec.artifact_kind}</div>
                     </td>
-                    <td className="py-3 px-4 font-mono text-cyan-400 text-[11px]">
+                    <td className="ls-table__mono">
                       {rec.revision.substring(0, 10)}...
                     </td>
-                    <td className="py-3 px-4 text-slate-300 text-[11px]">{rec.use_profile}</td>
-                    <td className="py-3 px-4">{renderMatchBadge(rec.subject_match)}</td>
-                    <td className="py-3 px-4">
-                      <span className={`px-2.5 py-0.5 rounded-full text-[11px] font-bold border ${statusMeta.badgeClass}`}>
+                    <td>{rec.use_profile}</td>
+                    <td>{renderMatchBadge(rec.subject_match)}</td>
+                    <td>
+                      <span className={`ls-badge ls-badge--${statusTone(rec.status)}`}>
                         {rec.status_name}
                       </span>
                     </td>
-                    <td className="py-3 px-4 text-right">
-                      <div className="flex items-center justify-end gap-2" onClick={(e) => e.stopPropagation()}>
-                        {isMatchingPending && (
-                          <button
-                            disabled={!isConfigured || isLoading}
-                            onClick={(e) => resumePendingAssessment(e, rec)}
-                            className="bg-amber-600 hover:bg-amber-500 text-white px-2.5 py-1 rounded-lg text-[11px] font-semibold flex items-center gap-1 transition-all disabled:opacity-40"
-                          >
-                            <RotateCcw className="w-3 h-3" />
-                            Resume Tx
-                          </button>
-                        )}
-
-                        {!isMatchingPending && rec.status === 1 && (
-                          <button
-                            disabled={!isConfigured || isLoading || coordinatorState.phase !== 'idle'}
-                            onClick={(e) => handleResolve(e, rec)}
-                            className="bg-cyan-600 hover:bg-cyan-500 text-white px-2.5 py-1 rounded-lg text-[11px] font-semibold flex items-center gap-1 transition-all disabled:opacity-40"
-                          >
-                            <Play className="w-3 h-3" />
-                            Resolve
-                          </button>
-                        )}
-
-                        {!isMatchingPending && rec.status === 5 && rec.retry_count < 2 && (
-                          <button
-                            disabled={!isConfigured || isLoading || coordinatorState.phase !== 'idle'}
-                            onClick={(e) => handleRetry(e, rec)}
-                            className="bg-purple-600 hover:bg-purple-500 text-white px-2.5 py-1 rounded-lg text-[11px] font-semibold flex items-center gap-1 transition-all disabled:opacity-40"
-                          >
-                            <RotateCcw className="w-3 h-3" />
-                            Retry ({rec.retry_count}/2)
-                          </button>
-                        )}
-
-                        <button
-                          onClick={() => onSelectRecord(rec)}
-                          className="bg-slate-800 hover:bg-slate-700 text-slate-200 px-2 py-1 rounded-lg text-[11px] flex items-center gap-1 transition-all"
-                        >
-                          <Eye className="w-3 h-3" />
-                          Detail
-                        </button>
+                    <td>
+                      <div className="ls-table__actions" onClick={(e) => e.stopPropagation()}>
+                        {renderActions(rec)}
                       </div>
                     </td>
                   </tr>
@@ -483,7 +510,25 @@ export const AssessmentList: React.FC<AssessmentListProps> = ({
             </tbody>
           </table>
         </div>
+        <div className="ls-records">
+          {filteredAssessments.map((rec) => (
+            <article key={rec.assessment_id} className="ls-record" onClick={() => onSelectRecord(rec)}>
+              <div className="ls-record__top">
+                <span className="ls-record__id">#{rec.assessment_id}</span>
+                <span className={`ls-badge ls-badge--${statusTone(rec.status)}`}>{rec.status_name}</span>
+              </div>
+              <div className="ls-record__grid">
+                <div className="ls-record__row"><span className="ls-record__k">Artifact / repo</span><span className="ls-record__v">{rec.namespace}/{rec.name} · {rec.artifact_kind}</span></div>
+                <div className="ls-record__row"><span className="ls-record__k">Revision</span><span className="ls-record__v ls-table__mono">{rec.revision}</span></div>
+                <div className="ls-record__row"><span className="ls-record__k">Profile</span><span className="ls-record__v">{rec.use_profile}</span></div>
+                <div className="ls-record__row"><span className="ls-record__k">Subject match</span><span className="ls-record__v">{renderMatchBadge(rec.subject_match)}</span></div>
+              </div>
+              <div className="ls-record__actions" onClick={(e) => e.stopPropagation()}>{renderActions(rec)}</div>
+            </article>
+          ))}
+        </div>
+        </>
       )}
-    </div>
+    </section>
   );
 };

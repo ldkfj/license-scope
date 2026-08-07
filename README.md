@@ -6,12 +6,14 @@ LicenseScope is a GenLayer DApp that records operational-rights attestations for
 
 ## Verified links
 
-Deployment is not configured yet. Studionet contract, Explorer, GitHub, and live application links will be added only after their respective verified release gates.
+The accepted Studionet contract is configured locally. GitHub and live-application links remain pending their release gates.
 
 - Network: GenLayer Studionet
 - Chain ID: `61999`
 - RPC: `https://studio.genlayer.com/api`
 - Explorer: `https://explorer-studio.genlayer.com/`
+- Contract: `0x8f1e48e52241E1B8b3320b953901ec7eeE481Ac7`
+- Upgrade transaction: `0x002f06c175fc2ea35e4f8b99f2c2562105b952073d8460baed786c925ce3dbd6`
 - Policy: `LS-V1`
 - Policy manifest hash: `sha256:1105b19ea7786bbd5ace24445845997e914e726cd2f80ddf83d8a6f8f8769532`
 
@@ -52,7 +54,7 @@ Any account may call `retry_assessment` only for `UNRESOLVED` records and only w
 ## Architecture
 
 - **Intelligent Contract:** canonical identity, policy manifest, evidence derivation, consensus evaluation, verdict state machine, retry policy, and upgrade authorization.
-- **Frontend:** wallet connection, Studionet chain enforcement, contract reads/writes, strict receipt validation, exact readback, and display. It never computes or substitutes a verdict.
+- **Frontend:** gasless signed wallet-session connection, explicit disconnect, Studionet chain enforcement, contract reads/writes, strict receipt validation, exact readback, and display. It never computes or substitutes a verdict.
 - **Public evidence:** revision-bound GitHub commit and root files fetched by the contract as untrusted data.
 - **Off-chain authority:** none. There is no backend, database, relayer, or cron service that can advance authoritative state.
 
@@ -160,7 +162,7 @@ Current exact results and evidence scope are recorded in `docs/VERIFICATION.md`.
 
 ## Deployment
 
-Release deployment is Studionet-only. The public deployment-wallet and external-upgrader address have been selected, format-checked, and recorded in `docs/DEPLOYMENT_RECOVERY.md`. The main contract already exists, but its candidate upgrade remains unauthorized until the evidence-bearing exact revision receives fresh anonymous approval and the user separately confirms that specific upgrade transaction immediately before it is sent.
+Release deployment is Studionet-only. The public deployment-wallet and external-upgrader address are recorded in `docs/DEPLOYMENT_RECOVERY.md`. The main contract was upgraded in place by the authorized wallet with the exact reviewed source; transaction, deployed-source parity, preserved-state readback, and a successful post-upgrade `BLOCK / EXACT` lifecycle are recorded there. Multi-account and release evidence remain pending, so no release-completion claim is made.
 
 The secret-free manifest, storage compatibility policy, reset recovery procedures, and completed disposable rehearsal evidence are in `docs/DEPLOYMENT_RECOVERY.md`.
 

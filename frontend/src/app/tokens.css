@@ -1,0 +1,76 @@
+/* Hallmark · genre: modern-minimal · macrostructure: Workbench · tone: technical-austere
+ * theme: custom (technical austere steel evidence console)
+ * paper: oklch(13.5% 0.012 250) · accent: oklch(62% 0.10 235) steel-blue
+ * display: Geist · body: Geist · mono: Geist Mono
+ * nav: N1b app chrome · enrichment: none · design-system: DESIGN.md · designed-as-app
+ * pre-emit critique: P5 H5 E4 S5 R5 V4
+ */
+
+:root {
+  /* Surfaces */
+  --color-paper: oklch(13.5% 0.012 250);
+  --color-paper-2: oklch(16.5% 0.012 250);
+  --color-paper-3: oklch(19.5% 0.01 250);
+  --color-ink: oklch(93% 0.008 250);
+  --color-ink-2: oklch(70% 0.012 250);
+  --color-muted: oklch(52% 0.01 250);
+  --color-rule: oklch(28% 0.01 250);
+  --color-rule-strong: oklch(36% 0.012 250);
+
+  /* Signal accent ≤ ~5% viewport */
+  --color-accent: oklch(62% 0.1 235);
+  --color-accent-ink: oklch(98% 0.01 250);
+  --color-accent-muted: oklch(62% 0.06 235);
+  --color-focus: oklch(72% 0.14 235);
+
+  /* Status — always pair with icon + text */
+  --color-status-ok: oklch(72% 0.12 155);
+  --color-status-ok-bg: oklch(22% 0.04 155);
+  --color-status-warn: oklch(78% 0.12 85);
+  --color-status-warn-bg: oklch(22% 0.04 85);
+  --color-status-err: oklch(68% 0.14 25);
+  --color-status-err-bg: oklch(22% 0.05 25);
+  --color-status-pending: oklch(75% 0.08 235);
+  --color-status-pending-bg: oklch(22% 0.03 235);
+
+  /* Bridge legacy starter names */
+  --background: var(--color-paper);
+  --foreground: var(--color-ink);
+
+  /* Typography */
+  --font-display: var(--font-geist-sans), ui-sans-serif, system-ui, sans-serif;
+  --font-body: var(--font-geist-sans), ui-sans-serif, system-ui, sans-serif;
+  --font-mono: var(--font-geist-mono), ui-monospace, monospace;
+
+  --text-xs: 0.75rem;
+  --text-sm: 0.875rem;
+  --text-md: 1rem;
+  --text-lg: 1.125rem;
+  --text-xl: 1.375rem;
+  --text-2xl: 1.75rem;
+
+  /* 4-point spacing */
+  --space-3xs: 0.25rem;
+  --space-2xs: 0.5rem;
+  --space-xs: 0.75rem;
+  --space-sm: 1rem;
+  --space-md: 1.5rem;
+  --space-lg: 2rem;
+  --space-xl: 3rem;
+  --space-2xl: 4.5rem;
+  --space-3xl: 7rem;
+
+  /* Motion */
+  --ease-out: cubic-bezier(0.16, 1, 0.3, 1);
+  --ease-in-out: cubic-bezier(0.45, 0, 0.55, 1);
+  --dur-short: 180ms;
+  --dur-mid: 220ms;
+
+  /* Geometry — austere, tight */
+  --radius-control: 4px;
+  --radius-panel: 6px;
+  --radius-input: 4px;
+
+  --shadow-menu: 0 8px 24px oklch(8% 0.02 250 / 0.55);
+  --measure-page: 72rem;
+}
