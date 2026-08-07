@@ -187,6 +187,6 @@ The secret-free manifest, storage compatibility policy, reset recovery procedure
 - `HF_MODEL` and `HF_DATASET` are explicitly locked as `UNSUPPORTED_V1`.
 - Private/authenticated repositories and caller-supplied evidence URLs are unsupported.
 - LicenseScope provides an operational policy decision, not legal advice.
-- The current Studionet contract passed deployment finality, execution, source parity, and state readback, but live testing exposed a deployed web-response API mismatch that safely returns `UNRESOLVED / SOURCE_MISSING`. A reviewed and explicitly authorized upgrade is required before release acceptance.
+- The installed dual-shape web-response repair passed deployment finality, upgraded-source parity, preserved-state readback, and a successful live `BLOCK / EXACT` resolution. A future unsupported upstream response shape will still fail closed to `UNRESOLVED` until separately reviewed and repaired.
 - Disposable deployed-code readback and upgrade redispatch are verified. Native Root locking was not independently isolated from the contract's earlier explicit authorization guard.
 - Availability and semantic quality still depend on public evidence and validator consensus; insufficient or custom evidence resolves safely to `UNRESOLVED`.

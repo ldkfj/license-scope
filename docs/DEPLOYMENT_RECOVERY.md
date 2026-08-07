@@ -128,19 +128,19 @@ An upgrade must preserve:
 
 LicenseScope V1 has no linked contracts, writer registry, bounty, funding, escrow, or post-deployment cross-contract configuration.
 
-The local frontend is configured to the current Studionet address for authorized live testing. It must not be presented as release-complete or switched to any replacement address until the applicable post-deployment checks pass.
+The production frontend is configured to the accepted Studionet address and is live at `https://license-scope.vercel.app`. It must not be switched to a replacement address without a separately reviewed revision and explicit authorization.
 
-## Pre-deployment identity procedure
+## Pre-deployment identity procedure (historical, completed)
 
 1. **Completed:** User selected the intended deployment wallet and external upgrader public address.
 2. **Completed:** Codex format-checked both public addresses for the intended Studionet workflow and recorded that they are the same wallet.
 3. **Completed:** The one-wallet concentration risk is recorded above: key loss can prevent recovery and key compromise can permit code replacement.
 4. **Completed:** Exact source commit and contract source hash are recorded above.
-5. **Pending fresh review:** the failed deployment and subsequent receipt-normalization repair invalidated earlier PRE_DEPLOY packages. Codex and anonymous co-review must approve the new exact revision/evidence package.
-6. Immediately before deployment, verify the active wallet identity, Studionet target, constructor upgrader, and source revision.
-7. Ask the user for a separate explicit confirmation to send the deployment transaction.
+5. **Completed:** The receipt-normalization repair and safe-rehearsal evidence received exact-revision PRE_DEPLOY approval; the later frontend/release package received exact-revision PRE_PUSH approval.
+6. **Completed:** Immediately before deployment, the active wallet identity, Studionet target, constructor upgrader, and source revision were verified.
+7. **Completed:** The user separately authorized the deployment transaction; that authorization was consumed by the transaction recorded above.
 
-Wallet selection and PRE_DEPLOY approval do not themselves authorize deployment.
+Wallet selection and PRE_DEPLOY approval did not themselves authorize deployment. The separate recorded deployment and main-upgrade authorizations are consumed and grant no authority for another transaction.
 
 ## Post-deployment acceptance procedure
 
