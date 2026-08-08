@@ -333,13 +333,6 @@ body {
   padding: 0.25rem;
 }
 
-.ls-wallet__menutitle {
-  padding: 0.4rem 0.65rem 0.3rem;
-  color: var(--color-ink-muted);
-  font-family: var(--font-mono);
-  font-size: var(--text-xs);
-}
-
 .ls-wallet__menuitem {
   display: flex;
   width: 100%;
@@ -383,6 +376,115 @@ body {
   line-height: 1.4;
   box-shadow: var(--shadow-menu);
   overflow-wrap: anywhere;
+}
+
+.ls-wallet-picker {
+  max-width: 31rem;
+}
+
+.ls-wallet-picker__subtitle,
+.ls-wallet-picker__note {
+  margin-top: 0.25rem;
+  color: var(--color-muted);
+  font-size: var(--text-xs);
+  line-height: 1.45;
+}
+
+.ls-wallet-picker__body {
+  gap: var(--space-sm);
+}
+
+.ls-wallet-picker__list {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2xs);
+}
+
+.ls-wallet-picker__item {
+  display: flex;
+  width: 100%;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-xs);
+  padding: 0.7rem 0.75rem;
+  border: 1px solid var(--color-rule);
+  border-radius: var(--radius-panel);
+  background: var(--color-paper);
+  color: var(--color-ink);
+  font-size: var(--text-sm);
+  font-weight: 600;
+  text-align: left;
+  text-decoration: none;
+  cursor: pointer;
+  transition: border-color var(--dur-short) var(--ease-out),
+    background-color var(--dur-short) var(--ease-out);
+}
+
+.ls-wallet-picker__item:hover {
+  border-color: var(--color-accent-muted);
+  background: var(--color-paper-3);
+}
+
+.ls-wallet-picker__identity,
+.ls-wallet-picker__status {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.55rem;
+  min-width: 0;
+}
+
+.ls-wallet-picker__icon {
+  width: 2.25rem;
+  height: 2.25rem;
+  flex-shrink: 0;
+  border-radius: 0.7rem;
+  object-fit: cover;
+}
+
+.ls-wallet-picker__icon.is-generic {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  background: var(--color-paper-3);
+  color: var(--color-accent);
+  font-family: var(--font-mono);
+}
+
+.ls-wallet-picker__status {
+  flex-shrink: 0;
+  border-radius: 999px;
+  background: var(--color-paper-3);
+  color: var(--color-ink-2);
+  padding: 0.25rem 0.5rem;
+  font-size: 0.6875rem;
+  font-weight: 600;
+}
+
+.ls-wallet-picker__section {
+  margin-bottom: var(--space-2xs);
+  color: var(--color-muted);
+  font-family: var(--font-mono);
+  font-size: 0.6875rem;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+}
+
+.ls-wallet-picker__empty {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 0.35rem;
+  padding: var(--space-md);
+  border: 1px dashed var(--color-rule-strong);
+  border-radius: var(--radius-panel);
+  color: var(--color-muted);
+  text-align: center;
+  font-size: var(--text-xs);
+}
+
+.ls-wallet-picker__empty strong {
+  color: var(--color-ink);
+  font-size: var(--text-sm);
 }
 
 /* ── Surfaces ─────────────────────────────────────────── */

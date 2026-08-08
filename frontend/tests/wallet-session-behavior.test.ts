@@ -221,7 +221,9 @@ test('wallet discovery never uses a provider before selection and retains delaye
       delayedSnapshots.push(wallets.map((wallet) => wallet.id));
     });
     const legacyWallets = await discoverBrowserWallets(0);
-    assert.deepEqual(legacyWallets.map(({ id }) => id), ['legacy-window-ethereum']);
+    assert.deepEqual(legacyWallets.map(({ id, name }) => ({ id, name })), [
+      { id: 'legacy-0', name: 'Browser Wallet' },
+    ]);
     assert.equal(getBrowserWalletProvider(), undefined);
     await assert.rejects(connectWalletAndVerifyChain(false), /No compatible Web3 wallet/i);
     assert.deepEqual(defaultCalls, []);

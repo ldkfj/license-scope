@@ -36,6 +36,7 @@ export interface EthereumProvider {
 export interface BrowserWalletProvider {
   id: string;
   name: string;
+  icon?: string;
   provider: EthereumProvider;
 }
 
@@ -62,7 +63,7 @@ const startBrowserWalletDiscovery = (): void => {
   if (typeof window === 'undefined' || walletDiscoveryStarted) return;
   const handleAnnouncement = (event: Event): void => {
     const detail = (event as CustomEvent<{
-      info?: { uuid?: unknown; name?: unknown };
+      info?: { uuid?: unknown; name?: unknown; icon?: unknown };
       provider?: EthereumProvider;
     }>).detail;
     if (
@@ -73,6 +74,11 @@ const startBrowserWalletDiscovery = (): void => {
     announcedWalletProviders.set(detail.info.uuid, {
       id: detail.info.uuid,
       name: detail.info.name,
+      ...(typeof detail.info.icon === 'string'
+        && detail.info.icon.length <= 200_000
+        && /^data:image\/(?:png|jpeg|webp|svg\+xml);base64,/i.test(detail.info.icon)
+        ? { icon: detail.info.icon }
+        : {}),
       provider: detail.provider,
     });
     const wallets = [...announcedWalletProviders.values()];
@@ -94,11 +100,35 @@ export async function discoverBrowserWallets(waitMs = 150): Promise<BrowserWalle
 
   const legacyProvider = (window as unknown as { ethereum?: EthereumProvider }).ethereum;
   if (legacyProvider) {
-    return [{
-      id: 'legacy-window-ethereum',
-      name: 'Browser Wallet',
-      provider: legacyProvider,
-    }];
+    const injected = legacyProvider as EthereumProvider & { providers?: unknown };
+    const providers = Array.isArray(injected.providers)
+      ? [...new Set(injected.providers.filter(
+        (provider): provider is EthereumProvider => typeof provider?.request === 'function',
+      ))]
+      : [legacyProvider];
+    return providers.map((provider, index) => {
+      const flags = provider as EthereumProvider & {
+        isCoinbaseWallet?: boolean;
+        isMetaMask?: boolean;
+        isOkxWallet?: boolean;
+        isPhantom?: boolean;
+        isRabby?: boolean;
+      };
+      const name = flags.isRabby
+        ? 'Rabby Wallet'
+        : flags.isCoinbaseWallet
+          ? 'Coinbase Wallet'
+          : flags.isOkxWallet
+            ? 'OKX Wallet'
+            : flags.isPhantom
+              ? 'Phantom'
+              : flags.isMetaMask
+                ? 'MetaMask'
+                : providers.length === 1
+                  ? 'Browser Wallet'
+                  : `Browser Wallet ${index + 1}`;
+      return { id: `legacy-${index}`, name, provider };
+    });
   }
   return [];
 }

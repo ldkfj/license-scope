@@ -17,6 +17,7 @@ test('registry read failures are explicit instead of looking like an empty regis
 test('connected wallet control exposes explicit change-account and disconnect actions', () => {
   const genlayer = readFileSync(new URL('../src/lib/genlayer.ts', import.meta.url), 'utf8');
   const navbar = readFileSync(new URL('../src/components/Navbar.tsx', import.meta.url), 'utf8');
+  const chooser = readFileSync(new URL('../src/components/WalletChooserModal.tsx', import.meta.url), 'utf8');
   const request = readFileSync(new URL('../src/components/RequestAssessmentForm.tsx', import.meta.url), 'utf8');
   const registry = readFileSync(new URL('../src/components/AssessmentList.tsx', import.meta.url), 'utf8');
   const permissionRequest = genlayer.indexOf("method: 'wallet_requestPermissions'");
@@ -42,7 +43,13 @@ test('connected wallet control exposes explicit change-account and disconnect ac
   assert.match(request, /connectWalletAndVerifyChain\(\)[\s\S]*?getClient\(accountAddr\)[\s\S]*?writeContract/);
   assert.match(registry, /connectWalletAndVerifyChain\(\)[\s\S]*?getClient\(accountAddr\)[\s\S]*?writeContract/);
   assert.match(navbar, /selectBrowserWalletProvider\(wallet\)/);
-  assert.match(navbar, /aria-label="Choose wallet"/);
+  assert.match(navbar, /<WalletChooserModal/);
+  assert.match(chooser, /role="dialog"/);
+  assert.match(chooser, />Select a wallet</);
+  assert.match(chooser, />Installed</);
+  assert.match(chooser, />Get a wallet</);
+  assert.match(chooser, /handleModalKeyDown/);
+  assert.match(chooser, /element\.inert = true/);
   assert.match(navbar, />\s*Change wallet\s*</);
   assert.match(navbar, /allowBrowserWalletConnection\(\)/);
   assert.match(navbar, /await signBrowserWalletConnection\(account\)/);

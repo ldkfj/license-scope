@@ -19,6 +19,7 @@ import {
   type BrowserWalletProvider,
   STUDIONET_CHAIN_ID,
 } from '@/lib/genlayer';
+import { WalletChooserModal } from '@/components/WalletChooserModal';
 
 interface NavbarProps {
   activeTab: 'request' | 'registry' | 'security';
@@ -34,6 +35,7 @@ export const Navbar: React.FC<NavbarProps> = ({ activeTab, setActiveTab }) => {
   const [isWalletChooserOpen, setIsWalletChooserOpen] = useState(false);
   const [walletOptions, setWalletOptions] = useState<BrowserWalletProvider[]>([]);
   const [providerRevision, setProviderRevision] = useState(0);
+  const closeWalletChooser = useCallback(() => setIsWalletChooserOpen(false), []);
 
   const refreshWalletState = useCallback(async (): Promise<void> => {
     if (isBrowserWalletDisconnected()) {
@@ -108,7 +110,6 @@ export const Navbar: React.FC<NavbarProps> = ({ activeTab, setActiveTab }) => {
     setIsWalletMenuOpen(false);
     try {
       const wallets = await discoverBrowserWallets();
-      if (wallets.length === 0) throw new Error('No compatible Web3 wallet was found in this browser.');
       setWalletOptions(wallets);
       setIsWalletChooserOpen(true);
     } catch (error) {
@@ -262,7 +263,7 @@ export const Navbar: React.FC<NavbarProps> = ({ activeTab, setActiveTab }) => {
               disabled={isConnecting}
               aria-label={walletAccount ? `Open wallet menu for ${walletAccount}` : 'Connect and sign wallet'}
               aria-expanded={isWalletMenuOpen || isWalletChooserOpen}
-              aria-haspopup="menu"
+              aria-haspopup={walletAccount ? 'menu' : 'dialog'}
               title={walletError ?? (walletAccount ? `Wallet options (${walletAccount})` : 'Connect wallet and sign a gasless session message')}
               className={walletBtnClass}
             >
@@ -284,23 +285,6 @@ export const Navbar: React.FC<NavbarProps> = ({ activeTab, setActiveTab }) => {
                 <span className="ls-wallet__dot" aria-hidden="true" title="Connected on Studionet" />
               )}
             </button>
-            {isWalletChooserOpen && (
-              <div role="menu" aria-label="Choose wallet" className="ls-wallet__menu">
-                <p className="ls-wallet__menutitle">Choose wallet</p>
-                {walletOptions.map((wallet) => (
-                  <button
-                    type="button"
-                    role="menuitem"
-                    key={wallet.id}
-                    onClick={() => void handleConnectWallet(wallet)}
-                    className="ls-wallet__menuitem"
-                  >
-                    <Wallet className="h-3.5 w-3.5" aria-hidden="true" />
-                    {wallet.name}
-                  </button>
-                ))}
-              </div>
-            )}
             {walletAccount && isWalletMenuOpen && (
               <div role="menu" className="ls-wallet__menu">
                 <button
@@ -340,6 +324,12 @@ export const Navbar: React.FC<NavbarProps> = ({ activeTab, setActiveTab }) => {
           </div>
         </div>
       </div>
+      <WalletChooserModal
+        open={isWalletChooserOpen}
+        wallets={walletOptions}
+        onClose={closeWalletChooser}
+        onSelect={(wallet) => void handleConnectWallet(wallet)}
+      />
     </header>
   );
 };
