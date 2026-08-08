@@ -48,6 +48,10 @@ test('connected wallet control exposes explicit change-account and disconnect ac
   assert.match(chooser, />Select a wallet</);
   assert.match(chooser, />Installed</);
   assert.match(chooser, />Get a wallet</);
+  assert.match(chooser, /wallet\.icon \?\? walletIcon\(wallet\.name\)/);
+  for (const icon of ['metamask', 'rabby', 'coinbase', 'okx', 'phantom', 'backpack']) {
+    assert.doesNotThrow(() => readFileSync(new URL(`../public/wallets/${icon}.svg`, import.meta.url)));
+  }
   assert.match(chooser, /handleModalKeyDown/);
   assert.match(chooser, /element\.inert = true/);
   assert.match(navbar, />\s*Change wallet\s*</);

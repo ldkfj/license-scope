@@ -15,12 +15,16 @@ interface WalletChooserModalProps {
 }
 
 const GET_WALLET_OPTIONS = [
-  { name: 'MetaMask', match: /metamask/i, url: 'https://metamask.io/download/' },
-  { name: 'Rabby Wallet', match: /rabby/i, url: 'https://rabby.io/' },
-  { name: 'Coinbase Wallet', match: /coinbase/i, url: 'https://www.coinbase.com/wallet/downloads' },
-  { name: 'OKX Wallet', match: /okx/i, url: 'https://web3.okx.com/download' },
-  { name: 'Phantom', match: /phantom/i, url: 'https://phantom.com/download' },
+  { name: 'MetaMask', match: /metamask/i, url: 'https://metamask.io/download/', icon: '/wallets/metamask.svg' },
+  { name: 'Rabby Wallet', match: /rabby/i, url: 'https://rabby.io/', icon: '/wallets/rabby.svg' },
+  { name: 'Coinbase Wallet', match: /coinbase/i, url: 'https://www.coinbase.com/wallet/downloads', icon: '/wallets/coinbase.svg' },
+  { name: 'OKX Wallet', match: /okx/i, url: 'https://web3.okx.com/download', icon: '/wallets/okx.svg' },
+  { name: 'Phantom', match: /phantom/i, url: 'https://phantom.com/download', icon: '/wallets/phantom.svg' },
 ];
+
+const walletIcon = (name: string): string | undefined =>
+  GET_WALLET_OPTIONS.find(({ match }) => match.test(name))?.icon
+  ?? (/backpack/i.test(name) ? '/wallets/backpack.svg' : undefined);
 
 export const WalletChooserModal: React.FC<WalletChooserModalProps> = ({
   open,
@@ -104,8 +108,8 @@ export const WalletChooserModal: React.FC<WalletChooserModalProps> = ({
                   onClick={() => onSelect(wallet)}
                 >
                   <span className="ls-wallet-picker__identity">
-                    {wallet.icon ? (
-                      <img className="ls-wallet-picker__icon" src={wallet.icon} alt="" />
+                    {wallet.icon || walletIcon(wallet.name) ? (
+                      <img className="ls-wallet-picker__icon" src={wallet.icon ?? walletIcon(wallet.name)} alt="" />
                     ) : (
                       <span className="ls-wallet-picker__icon is-generic" aria-hidden="true">
                         <Wallet className="h-5 w-5" />
@@ -138,9 +142,7 @@ export const WalletChooserModal: React.FC<WalletChooserModalProps> = ({
                     key={wallet.name}
                   >
                     <span className="ls-wallet-picker__identity">
-                      <span className="ls-wallet-picker__icon is-generic" aria-hidden="true">
-                        {wallet.name.slice(0, 1)}
-                      </span>
+                      <img className="ls-wallet-picker__icon" src={wallet.icon} alt="" />
                       <span>{wallet.name}</span>
                     </span>
                     <span className="ls-wallet-picker__status">
