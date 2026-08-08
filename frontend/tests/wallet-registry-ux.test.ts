@@ -31,6 +31,11 @@ test('connected wallet control exposes explicit change-account and disconnect ac
   assert.match(genlayer, /sessionStorage\.setItem\(WALLET_SIGNED_ACCOUNT_KEY, normalizedAccount\)/);
   assert.match(genlayer, /Connect and sign with your wallet from the LicenseScope header first/);
   assert.match(genlayer, /Wallet is disconnected in LicenseScope/);
+  assert.match(genlayer, /eip6963:requestProvider/);
+  assert.match(genlayer, /eip6963:announceProvider/);
+  assert.match(navbar, /selectBrowserWalletProvider\(wallet\)/);
+  assert.match(navbar, /aria-label="Choose wallet"/);
+  assert.match(navbar, />\s*Change wallet\s*</);
   assert.match(navbar, /allowBrowserWalletConnection\(\)/);
   assert.match(navbar, /await signBrowserWalletConnection\(account\)/);
   assert.match(navbar, /invalidateBrowserWalletConnectionSignature\(\)/);

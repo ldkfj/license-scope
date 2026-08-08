@@ -4,7 +4,9 @@ import React, { useCallback, useEffect, useState } from 'react';
 import { ShieldCheck, Cpu, Code2, BookOpen, Wallet, LoaderCircle, LogOut, RefreshCw } from 'lucide-react';
 import {
   connectWalletAndVerifyChain,
+  discoverBrowserWallets,
   disconnectBrowserWallet,
+  getBrowserWalletProvider,
   allowBrowserWalletConnection,
   isBrowserWalletDisconnected,
   isBrowserWalletConnectionSigned,
@@ -12,7 +14,8 @@ import {
   signBrowserWalletConnection,
   suppressBrowserWalletConnection,
   reconnectWalletAndVerifyChain,
-  EthereumProvider,
+  selectBrowserWalletProvider,
+  type BrowserWalletProvider,
   STUDIONET_CHAIN_ID,
 } from '@/lib/genlayer';
 
@@ -27,6 +30,9 @@ export const Navbar: React.FC<NavbarProps> = ({ activeTab, setActiveTab }) => {
   const [isConnecting, setIsConnecting] = useState(false);
   const [walletError, setWalletError] = useState<string | null>(null);
   const [isWalletMenuOpen, setIsWalletMenuOpen] = useState(false);
+  const [isWalletChooserOpen, setIsWalletChooserOpen] = useState(false);
+  const [walletOptions, setWalletOptions] = useState<BrowserWalletProvider[]>([]);
+  const [providerRevision, setProviderRevision] = useState(0);
 
   const refreshWalletState = useCallback(async (): Promise<void> => {
     if (isBrowserWalletDisconnected()) {
@@ -34,7 +40,7 @@ export const Navbar: React.FC<NavbarProps> = ({ activeTab, setActiveTab }) => {
       setIsStudionet(false);
       return;
     }
-    const ethereum = (window as unknown as { ethereum?: EthereumProvider }).ethereum;
+    const ethereum = getBrowserWalletProvider();
     if (!ethereum) {
       setWalletAccount(null);
       setIsStudionet(false);
@@ -63,34 +69,58 @@ export const Navbar: React.FC<NavbarProps> = ({ activeTab, setActiveTab }) => {
   }, []);
 
   useEffect(() => {
-    const ethereum = (window as unknown as { ethereum?: EthereumProvider }).ethereum;
-    const refreshTimer = window.setTimeout(() => {
-      void refreshWalletState();
-    }, 0);
-    if (!ethereum?.on) {
-      return () => window.clearTimeout(refreshTimer);
-    }
+    let cancelled = false;
+    let removeListeners = (): void => undefined;
 
-    const handleAccountsChanged = () => {
-      invalidateBrowserWalletConnectionSignature();
+    void discoverBrowserWallets().then(() => {
+      if (cancelled) return;
       void refreshWalletState();
-    };
-    const handleChainChanged = () => void refreshWalletState();
-    ethereum.on('accountsChanged', handleAccountsChanged);
-    ethereum.on('chainChanged', handleChainChanged);
+      const ethereum = getBrowserWalletProvider();
+      if (!ethereum?.on) return;
+
+      const handleAccountsChanged = () => {
+        invalidateBrowserWalletConnectionSignature();
+        void refreshWalletState();
+      };
+      const handleChainChanged = () => void refreshWalletState();
+      ethereum.on('accountsChanged', handleAccountsChanged);
+      ethereum.on('chainChanged', handleChainChanged);
+      removeListeners = () => {
+        ethereum.removeListener?.('accountsChanged', handleAccountsChanged);
+        ethereum.removeListener?.('chainChanged', handleChainChanged);
+      };
+    });
 
     return () => {
-      window.clearTimeout(refreshTimer);
-      ethereum.removeListener?.('accountsChanged', handleAccountsChanged);
-      ethereum.removeListener?.('chainChanged', handleChainChanged);
+      cancelled = true;
+      removeListeners();
     };
-  }, [refreshWalletState]);
+  }, [providerRevision, refreshWalletState]);
 
-  const handleConnectWallet = async (): Promise<void> => {
+  const openWalletChooser = async (): Promise<void> => {
+    setIsConnecting(true);
+    setWalletError(null);
+    setIsWalletMenuOpen(false);
+    try {
+      const wallets = await discoverBrowserWallets();
+      if (wallets.length === 0) throw new Error('No compatible Web3 wallet was found in this browser.');
+      setWalletOptions(wallets);
+      setIsWalletChooserOpen(true);
+    } catch (error) {
+      setWalletError(error instanceof Error ? error.message : 'Unable to discover browser wallets.');
+    } finally {
+      setIsConnecting(false);
+    }
+  };
+
+  const handleConnectWallet = async (wallet: BrowserWalletProvider): Promise<void> => {
+    setIsWalletChooserOpen(false);
     setIsConnecting(true);
     setWalletError(null);
     invalidateBrowserWalletConnectionSignature();
     allowBrowserWalletConnection();
+    selectBrowserWalletProvider(wallet);
+    setProviderRevision((revision) => revision + 1);
     try {
       const account = await connectWalletAndVerifyChain(false);
       await signBrowserWalletConnection(account);
@@ -127,6 +157,7 @@ export const Navbar: React.FC<NavbarProps> = ({ activeTab, setActiveTab }) => {
 
   const handleDisconnectWallet = async (): Promise<void> => {
     setIsWalletMenuOpen(false);
+    setIsWalletChooserOpen(false);
     setIsConnecting(true);
     setWalletError(null);
     try {
@@ -143,10 +174,15 @@ export const Navbar: React.FC<NavbarProps> = ({ activeTab, setActiveTab }) => {
 
   const handleWalletButton = (): void => {
     if (!walletAccount) {
-      void handleConnectWallet();
+      if (isWalletChooserOpen) {
+        setIsWalletChooserOpen(false);
+      } else {
+        void openWalletChooser();
+      }
       return;
     }
     setWalletError(null);
+    setIsWalletChooserOpen(false);
     setIsWalletMenuOpen((open) => !open);
   };
 
@@ -219,8 +255,8 @@ export const Navbar: React.FC<NavbarProps> = ({ activeTab, setActiveTab }) => {
               onClick={handleWalletButton}
               disabled={isConnecting}
               aria-label={walletAccount ? `Open wallet menu for ${walletAccount}` : 'Connect and sign wallet'}
-              aria-expanded={walletAccount ? isWalletMenuOpen : undefined}
-              aria-haspopup={walletAccount ? 'menu' : undefined}
+              aria-expanded={isWalletMenuOpen || isWalletChooserOpen}
+              aria-haspopup="menu"
               title={walletError ?? (walletAccount ? `Wallet options (${walletAccount})` : 'Connect wallet and sign a gasless session message')}
               className={walletBtnClass}
             >
@@ -242,8 +278,34 @@ export const Navbar: React.FC<NavbarProps> = ({ activeTab, setActiveTab }) => {
                 <span className="ls-wallet__dot" aria-hidden="true" title="Connected on Studionet" />
               )}
             </button>
+            {isWalletChooserOpen && (
+              <div role="menu" aria-label="Choose wallet" className="ls-wallet__menu">
+                <p className="ls-wallet__menutitle">Choose wallet</p>
+                {walletOptions.map((wallet) => (
+                  <button
+                    type="button"
+                    role="menuitem"
+                    key={wallet.id}
+                    onClick={() => void handleConnectWallet(wallet)}
+                    className="ls-wallet__menuitem"
+                  >
+                    <Wallet className="h-3.5 w-3.5" aria-hidden="true" />
+                    {wallet.name}
+                  </button>
+                ))}
+              </div>
+            )}
             {walletAccount && isWalletMenuOpen && (
               <div role="menu" className="ls-wallet__menu">
+                <button
+                  type="button"
+                  role="menuitem"
+                  onClick={() => void openWalletChooser()}
+                  className="ls-wallet__menuitem"
+                >
+                  <Wallet className="h-3.5 w-3.5" aria-hidden="true" />
+                  Change wallet
+                </button>
                 <button
                   type="button"
                   role="menuitem"

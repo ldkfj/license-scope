@@ -5,9 +5,12 @@ import type { Hex } from 'viem';
 
 import {
   connectWalletAndVerifyChain,
+  discoverBrowserWallets,
+  getBrowserWalletProvider,
   invalidateBrowserWalletConnectionSignature,
   isBrowserWalletConnectionSigned,
   signBrowserWalletConnection,
+  selectBrowserWalletProvider,
   suppressBrowserWalletConnection,
   type EthereumProvider,
 } from '../src/lib/genlayer.ts';
@@ -142,4 +145,66 @@ test('modal Escape closes and Tab containment prevents focus escape', () => {
   handleModalKeyDown(event('Tab'), [first, last], last, () => undefined);
   assert.equal(closed, true);
   assert.equal(prevented, 2);
+});
+
+test('EIP-6963 discovery lets the user select a non-default wallet provider', async () => {
+  const previous = Object.getOwnPropertyDescriptor(globalThis, 'window');
+  const events = new EventTarget();
+  const defaultCalls: string[] = [];
+  const selectedCalls: string[] = [];
+  const defaultProvider: EthereumProvider = {
+    request: async ({ method }) => {
+      defaultCalls.push(method);
+      return [];
+    },
+  };
+  const selectedProvider: EthereumProvider = {
+    request: async ({ method }) => {
+      selectedCalls.push(method);
+      if (method === 'eth_requestAccounts') return [accountB.address];
+      if (method === 'eth_chainId') return '0xf22f';
+      return [];
+    },
+  };
+  const announcements = [
+    { info: { uuid: 'wallet-a', name: 'Default Wallet' }, provider: defaultProvider },
+    { info: { uuid: 'wallet-b', name: 'Selected Wallet' }, provider: selectedProvider },
+  ];
+  const browserWindow = {
+    ethereum: defaultProvider,
+    location: { origin: 'https://licensescope.test' },
+    sessionStorage: new MemoryStorage(),
+    setTimeout,
+    addEventListener: events.addEventListener.bind(events),
+    removeEventListener: events.removeEventListener.bind(events),
+    dispatchEvent(event: Event) {
+      const dispatched = events.dispatchEvent(event);
+      if (event.type === 'eip6963:requestProvider') {
+        for (const detail of announcements) {
+          const announcement = new Event('eip6963:announceProvider');
+          Object.defineProperty(announcement, 'detail', { value: detail });
+          events.dispatchEvent(announcement);
+        }
+      }
+      return dispatched;
+    },
+  };
+  Object.defineProperty(globalThis, 'window', { configurable: true, value: browserWindow });
+
+  try {
+    const wallets = await discoverBrowserWallets(0);
+    assert.deepEqual(wallets.map(({ id, name }) => ({ id, name })), [
+      { id: 'wallet-a', name: 'Default Wallet' },
+      { id: 'wallet-b', name: 'Selected Wallet' },
+    ]);
+    selectBrowserWalletProvider(wallets[1]);
+    assert.equal(getBrowserWalletProvider(), selectedProvider);
+    assert.equal(browserWindow.sessionStorage.getItem('licensescope.walletProvider'), 'wallet-b');
+    assert.equal(await connectWalletAndVerifyChain(false), accountB.address);
+    assert.deepEqual(selectedCalls, ['eth_requestAccounts', 'eth_chainId']);
+    assert.deepEqual(defaultCalls, []);
+  } finally {
+    if (previous) Object.defineProperty(globalThis, 'window', previous);
+    else delete (globalThis as { window?: unknown }).window;
+  }
 });

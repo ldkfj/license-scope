@@ -56,7 +56,7 @@ Any account may call `retry_assessment` only for `UNRESOLVED` records and only w
 ## Architecture
 
 - **Intelligent Contract:** canonical identity, policy manifest, evidence derivation, consensus evaluation, verdict state machine, retry policy, and upgrade authorization.
-- **Frontend:** gasless signed wallet-session connection, explicit disconnect, Studionet chain enforcement, contract reads/writes, strict receipt validation, exact readback, and display. It never computes or substitutes a verdict.
+- **Frontend:** EIP-6963 browser-wallet selection, gasless signed wallet-session connection, explicit disconnect, Studionet chain enforcement, contract reads/writes, strict receipt validation, exact readback, and display. It never computes or substitutes a verdict.
 - **Public evidence:** revision-bound GitHub commit and root files fetched by the contract as untrusted data.
 - **Off-chain authority:** none. There is no backend, database, relayer, or cron service that can advance authoritative state.
 

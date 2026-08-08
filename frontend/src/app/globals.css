@@ -333,6 +333,13 @@ body {
   padding: 0.25rem;
 }
 
+.ls-wallet__menutitle {
+  padding: 0.4rem 0.65rem 0.3rem;
+  color: var(--color-ink-muted);
+  font-family: var(--font-mono);
+  font-size: var(--text-xs);
+}
+
 .ls-wallet__menuitem {
   display: flex;
   width: 100%;

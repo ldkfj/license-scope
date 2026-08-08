@@ -26,11 +26,73 @@ export const POLICY_HASH = 'sha256:1105b19ea7786bbd5ace24445845997e914e726cd2f80
 export const STUDIONET_EXPLORER_BASE = 'https://explorer-studio.genlayer.com/';
 const WALLET_DISCONNECTED_KEY = 'licensescope.walletDisconnected';
 const WALLET_SIGNED_ACCOUNT_KEY = 'licensescope.walletSignedAccount';
+const WALLET_PROVIDER_KEY = 'licensescope.walletProvider';
 
 export interface EthereumProvider {
   request: (args: { method: string; params?: unknown[] }) => Promise<unknown>;
   on?: (event: string, listener: (...args: unknown[]) => void) => void;
   removeListener?: (event: string, listener: (...args: unknown[]) => void) => void;
+}
+
+export interface BrowserWalletProvider {
+  id: string;
+  name: string;
+  provider: EthereumProvider;
+}
+
+let selectedWalletProvider: EthereumProvider | null = null;
+
+export const getBrowserWalletProvider = (): EthereumProvider | undefined =>
+  selectedWalletProvider
+  ?? (typeof window !== 'undefined'
+    ? (window as unknown as { ethereum?: EthereumProvider }).ethereum
+    : undefined);
+
+export const selectBrowserWalletProvider = (wallet: BrowserWalletProvider): void => {
+  selectedWalletProvider = wallet.provider;
+  if (typeof window !== 'undefined') window.sessionStorage.setItem(WALLET_PROVIDER_KEY, wallet.id);
+};
+
+export async function discoverBrowserWallets(waitMs = 150): Promise<BrowserWalletProvider[]> {
+  if (typeof window === 'undefined') return [];
+
+  const wallets = new Map<string, BrowserWalletProvider>();
+  const handleAnnouncement = (event: Event): void => {
+    const detail = (event as CustomEvent<{
+      info?: { uuid?: unknown; name?: unknown };
+      provider?: EthereumProvider;
+    }>).detail;
+    if (
+      typeof detail?.info?.uuid !== 'string'
+      || typeof detail.info.name !== 'string'
+      || typeof detail.provider?.request !== 'function'
+    ) return;
+    wallets.set(detail.info.uuid, {
+      id: detail.info.uuid,
+      name: detail.info.name,
+      provider: detail.provider,
+    });
+  };
+
+  window.addEventListener('eip6963:announceProvider', handleAnnouncement);
+  window.dispatchEvent(new Event('eip6963:requestProvider'));
+  await new Promise((resolve) => window.setTimeout(resolve, waitMs));
+  window.removeEventListener('eip6963:announceProvider', handleAnnouncement);
+
+  const legacyProvider = (window as unknown as { ethereum?: EthereumProvider }).ethereum;
+  if (wallets.size === 0 && legacyProvider) {
+    wallets.set('legacy-window-ethereum', {
+      id: 'legacy-window-ethereum',
+      name: 'Browser Wallet',
+      provider: legacyProvider,
+    });
+  }
+
+  const discovered = [...wallets.values()];
+  const savedId = window.sessionStorage.getItem(WALLET_PROVIDER_KEY);
+  const savedWallet = discovered.find((wallet) => wallet.id === savedId);
+  if (savedWallet) selectedWalletProvider = savedWallet.provider;
+  return discovered;
 }
 
 export const isContractConfigured = (): boolean => {
@@ -72,8 +134,8 @@ export const isBrowserWalletConnectionSigned = (account: string): boolean =>
 
 export async function signBrowserWalletConnection(account: string): Promise<void> {
   if (typeof window === 'undefined') throw new Error('Window environment undefined.');
-  const ethereum = (window as unknown as { ethereum?: EthereumProvider }).ethereum;
-  if (!ethereum) throw new Error('MetaMask or Compatible Web3 Wallet is not installed in browser.');
+  const ethereum = getBrowserWalletProvider();
+  if (!ethereum) throw new Error('No compatible Web3 wallet was found in this browser.');
 
   const normalizedAccount = account.toLowerCase();
   if (!/^0x[0-9a-f]{40}$/.test(normalizedAccount)) throw new Error('Wallet account address is invalid.');
@@ -115,10 +177,7 @@ export async function signBrowserWalletConnection(account: string): Promise<void
 }
 
 export const getClient = (accountAddress?: string) => {
-  const ethereum =
-    typeof window !== 'undefined'
-      ? (window as unknown as { ethereum?: EthereumProvider }).ethereum
-      : undefined;
+  const ethereum = getBrowserWalletProvider();
 
   return createClient({
     chain: studionet,
@@ -156,10 +215,10 @@ export async function connectWalletAndVerifyChain(requireSignedSession = true): 
     throw new Error('Connect and sign with your wallet from the LicenseScope header first.');
   }
 
-  const ethereum = (window as unknown as { ethereum?: EthereumProvider }).ethereum;
+  const ethereum = getBrowserWalletProvider();
 
   if (!ethereum) {
-    throw new Error('MetaMask or Compatible Web3 Wallet is not installed in browser.');
+    throw new Error('No compatible Web3 wallet was found in this browser.');
   }
 
   const accounts = (await ethereum.request({
@@ -206,9 +265,9 @@ export async function reconnectWalletAndVerifyChain(requireSignedSession = true)
     throw new Error('Window environment undefined.');
   }
 
-  const ethereum = (window as unknown as { ethereum?: EthereumProvider }).ethereum;
+  const ethereum = getBrowserWalletProvider();
   if (!ethereum) {
-    throw new Error('MetaMask or Compatible Web3 Wallet is not installed in browser.');
+    throw new Error('No compatible Web3 wallet was found in this browser.');
   }
 
   try {
@@ -231,9 +290,9 @@ export async function disconnectBrowserWallet(): Promise<boolean> {
     throw new Error('Window environment undefined.');
   }
 
-  const ethereum = (window as unknown as { ethereum?: EthereumProvider }).ethereum;
+  const ethereum = getBrowserWalletProvider();
   if (!ethereum) {
-    throw new Error('MetaMask or Compatible Web3 Wallet is not installed in browser.');
+    throw new Error('No compatible Web3 wallet was found in this browser.');
   }
 
   suppressBrowserWalletConnection();
@@ -248,5 +307,8 @@ export async function disconnectBrowserWallet(): Promise<boolean> {
     // Providers may not implement permission revocation. The session flag still
     // prevents reads and writes from treating the authorized account as connected.
     return false;
+  } finally {
+    selectedWalletProvider = null;
+    window.sessionStorage.removeItem(WALLET_PROVIDER_KEY);
   }
 }
