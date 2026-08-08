@@ -26,7 +26,6 @@ export const POLICY_HASH = 'sha256:1105b19ea7786bbd5ace24445845997e914e726cd2f80
 export const STUDIONET_EXPLORER_BASE = 'https://explorer-studio.genlayer.com/';
 const WALLET_DISCONNECTED_KEY = 'licensescope.walletDisconnected';
 const WALLET_SIGNED_ACCOUNT_KEY = 'licensescope.walletSignedAccount';
-const WALLET_PROVIDER_KEY = 'licensescope.walletProvider';
 
 export interface EthereumProvider {
   request: (args: { method: string; params?: unknown[] }) => Promise<unknown>;
@@ -41,22 +40,26 @@ export interface BrowserWalletProvider {
 }
 
 let selectedWalletProvider: EthereumProvider | null = null;
+const announcedWalletProviders = new Map<string, BrowserWalletProvider>();
+const walletDiscoverySubscribers = new Set<(wallets: BrowserWalletProvider[]) => void>();
+let walletDiscoveryStarted = false;
 
 export const getBrowserWalletProvider = (): EthereumProvider | undefined =>
-  selectedWalletProvider
-  ?? (typeof window !== 'undefined'
-    ? (window as unknown as { ethereum?: EthereumProvider }).ethereum
-    : undefined);
+  selectedWalletProvider ?? undefined;
 
 export const selectBrowserWalletProvider = (wallet: BrowserWalletProvider): void => {
   selectedWalletProvider = wallet.provider;
-  if (typeof window !== 'undefined') window.sessionStorage.setItem(WALLET_PROVIDER_KEY, wallet.id);
 };
 
-export async function discoverBrowserWallets(waitMs = 150): Promise<BrowserWalletProvider[]> {
-  if (typeof window === 'undefined') return [];
+export const subscribeBrowserWallets = (
+  subscriber: (wallets: BrowserWalletProvider[]) => void,
+): (() => void) => {
+  walletDiscoverySubscribers.add(subscriber);
+  return () => walletDiscoverySubscribers.delete(subscriber);
+};
 
-  const wallets = new Map<string, BrowserWalletProvider>();
+const startBrowserWalletDiscovery = (): void => {
+  if (typeof window === 'undefined' || walletDiscoveryStarted) return;
   const handleAnnouncement = (event: Event): void => {
     const detail = (event as CustomEvent<{
       info?: { uuid?: unknown; name?: unknown };
@@ -67,32 +70,37 @@ export async function discoverBrowserWallets(waitMs = 150): Promise<BrowserWalle
       || typeof detail.info.name !== 'string'
       || typeof detail.provider?.request !== 'function'
     ) return;
-    wallets.set(detail.info.uuid, {
+    announcedWalletProviders.set(detail.info.uuid, {
       id: detail.info.uuid,
       name: detail.info.name,
       provider: detail.provider,
     });
+    const wallets = [...announcedWalletProviders.values()];
+    walletDiscoverySubscribers.forEach((subscriber) => subscriber(wallets));
   };
 
   window.addEventListener('eip6963:announceProvider', handleAnnouncement);
+  walletDiscoveryStarted = true;
+};
+
+export async function discoverBrowserWallets(waitMs = 150): Promise<BrowserWalletProvider[]> {
+  if (typeof window === 'undefined') return [];
+
+  startBrowserWalletDiscovery();
   window.dispatchEvent(new Event('eip6963:requestProvider'));
   await new Promise((resolve) => window.setTimeout(resolve, waitMs));
-  window.removeEventListener('eip6963:announceProvider', handleAnnouncement);
+
+  if (announcedWalletProviders.size > 0) return [...announcedWalletProviders.values()];
 
   const legacyProvider = (window as unknown as { ethereum?: EthereumProvider }).ethereum;
-  if (wallets.size === 0 && legacyProvider) {
-    wallets.set('legacy-window-ethereum', {
+  if (legacyProvider) {
+    return [{
       id: 'legacy-window-ethereum',
       name: 'Browser Wallet',
       provider: legacyProvider,
-    });
+    }];
   }
-
-  const discovered = [...wallets.values()];
-  const savedId = window.sessionStorage.getItem(WALLET_PROVIDER_KEY);
-  const savedWallet = discovered.find((wallet) => wallet.id === savedId);
-  if (savedWallet) selectedWalletProvider = savedWallet.provider;
-  return discovered;
+  return [];
 }
 
 export const isContractConfigured = (): boolean => {
@@ -309,6 +317,5 @@ export async function disconnectBrowserWallet(): Promise<boolean> {
     return false;
   } finally {
     selectedWalletProvider = null;
-    window.sessionStorage.removeItem(WALLET_PROVIDER_KEY);
   }
 }

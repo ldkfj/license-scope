@@ -17,6 +17,8 @@ test('registry read failures are explicit instead of looking like an empty regis
 test('connected wallet control exposes explicit change-account and disconnect actions', () => {
   const genlayer = readFileSync(new URL('../src/lib/genlayer.ts', import.meta.url), 'utf8');
   const navbar = readFileSync(new URL('../src/components/Navbar.tsx', import.meta.url), 'utf8');
+  const request = readFileSync(new URL('../src/components/RequestAssessmentForm.tsx', import.meta.url), 'utf8');
+  const registry = readFileSync(new URL('../src/components/AssessmentList.tsx', import.meta.url), 'utf8');
   const permissionRequest = genlayer.indexOf("method: 'wallet_requestPermissions'");
   const reconnect = genlayer.indexOf('return connectWalletAndVerifyChain(requireSignedSession)', permissionRequest);
   const revoke = genlayer.indexOf("method: 'wallet_revokePermissions'");
@@ -33,6 +35,12 @@ test('connected wallet control exposes explicit change-account and disconnect ac
   assert.match(genlayer, /Wallet is disconnected in LicenseScope/);
   assert.match(genlayer, /eip6963:requestProvider/);
   assert.match(genlayer, /eip6963:announceProvider/);
+  assert.match(genlayer, /selectedWalletProvider \?\? undefined/);
+  assert.doesNotMatch(genlayer, /WALLET_PROVIDER_KEY/);
+  assert.doesNotMatch(genlayer, /removeEventListener\('eip6963:announceProvider'/);
+  assert.match(genlayer, /export const getClient[\s\S]*?const ethereum = getBrowserWalletProvider\(\)/);
+  assert.match(request, /connectWalletAndVerifyChain\(\)[\s\S]*?getClient\(accountAddr\)[\s\S]*?writeContract/);
+  assert.match(registry, /connectWalletAndVerifyChain\(\)[\s\S]*?getClient\(accountAddr\)[\s\S]*?writeContract/);
   assert.match(navbar, /selectBrowserWalletProvider\(wallet\)/);
   assert.match(navbar, /aria-label="Choose wallet"/);
   assert.match(navbar, />\s*Change wallet\s*</);

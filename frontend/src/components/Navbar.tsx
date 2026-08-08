@@ -15,6 +15,7 @@ import {
   suppressBrowserWalletConnection,
   reconnectWalletAndVerifyChain,
   selectBrowserWalletProvider,
+  subscribeBrowserWallets,
   type BrowserWalletProvider,
   STUDIONET_CHAIN_ID,
 } from '@/lib/genlayer';
@@ -66,6 +67,10 @@ export const Navbar: React.FC<NavbarProps> = ({ activeTab, setActiveTab }) => {
       setWalletAccount(null);
       setIsStudionet(false);
     }
+  }, []);
+
+  useEffect(() => {
+    return subscribeBrowserWallets(setWalletOptions);
   }, []);
 
   useEffect(() => {
@@ -162,6 +167,7 @@ export const Navbar: React.FC<NavbarProps> = ({ activeTab, setActiveTab }) => {
     setWalletError(null);
     try {
       await disconnectBrowserWallet();
+      setProviderRevision((revision) => revision + 1);
       setWalletAccount(null);
       setIsStudionet(false);
     } catch (error) {

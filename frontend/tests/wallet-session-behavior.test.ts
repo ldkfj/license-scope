@@ -6,12 +6,15 @@ import type { Hex } from 'viem';
 import {
   connectWalletAndVerifyChain,
   discoverBrowserWallets,
+  disconnectBrowserWallet,
   getBrowserWalletProvider,
   invalidateBrowserWalletConnectionSignature,
   isBrowserWalletConnectionSigned,
+  reconnectWalletAndVerifyChain,
   signBrowserWalletConnection,
   selectBrowserWalletProvider,
   suppressBrowserWalletConnection,
+  subscribeBrowserWallets,
   type EthereumProvider,
 } from '../src/lib/genlayer.ts';
 import { cycleModalFocus, handleModalKeyDown, type FocusTarget } from '../src/lib/modalFocus.ts';
@@ -35,9 +38,11 @@ async function withWalletWindow(provider: EthereumProvider, run: () => Promise<v
     configurable: true,
     value: { ethereum: provider, location: { origin: 'https://licensescope.test' }, sessionStorage: new MemoryStorage() },
   });
+  selectBrowserWalletProvider({ id: 'test-wallet', name: 'Test Wallet', provider });
   try {
     await run();
   } finally {
+    await disconnectBrowserWallet();
     if (previous) Object.defineProperty(globalThis, 'window', previous);
     else delete (globalThis as { window?: unknown }).window;
   }
@@ -147,9 +152,13 @@ test('modal Escape closes and Tab containment prevents focus escape', () => {
   assert.equal(prevented, 2);
 });
 
-test('EIP-6963 discovery lets the user select a non-default wallet provider', async () => {
+test('wallet discovery never uses a provider before selection and retains delayed EIP-6963 announcements', async () => {
   const previous = Object.getOwnPropertyDescriptor(globalThis, 'window');
   const events = new EventTarget();
+  let listenerAdds = 0;
+  let listenerRemovals = 0;
+  let revoked = false;
+  let announceOnRequest = false;
   const defaultCalls: string[] = [];
   const selectedCalls: string[] = [];
   const defaultProvider: EthereumProvider = {
@@ -159,10 +168,19 @@ test('EIP-6963 discovery lets the user select a non-default wallet provider', as
     },
   };
   const selectedProvider: EthereumProvider = {
-    request: async ({ method }) => {
+    request: async ({ method, params }) => {
       selectedCalls.push(method);
       if (method === 'eth_requestAccounts') return [accountB.address];
+      if (method === 'eth_accounts') return revoked ? [] : [accountB.address];
       if (method === 'eth_chainId') return '0xf22f';
+      if (method === 'personal_sign') {
+        return accountB.signMessage({ message: { raw: params?.[0] as Hex } });
+      }
+      if (method === 'wallet_requestPermissions') return null;
+      if (method === 'wallet_revokePermissions') {
+        revoked = true;
+        return null;
+      }
       return [];
     },
   };
@@ -175,11 +193,17 @@ test('EIP-6963 discovery lets the user select a non-default wallet provider', as
     location: { origin: 'https://licensescope.test' },
     sessionStorage: new MemoryStorage(),
     setTimeout,
-    addEventListener: events.addEventListener.bind(events),
-    removeEventListener: events.removeEventListener.bind(events),
+    addEventListener(type: string, listener: EventListener) {
+      listenerAdds += 1;
+      events.addEventListener(type, listener);
+    },
+    removeEventListener(type: string, listener: EventListener) {
+      listenerRemovals += 1;
+      events.removeEventListener(type, listener);
+    },
     dispatchEvent(event: Event) {
       const dispatched = events.dispatchEvent(event);
-      if (event.type === 'eip6963:requestProvider') {
+      if (event.type === 'eip6963:requestProvider' && announceOnRequest) {
         for (const detail of announcements) {
           const announcement = new Event('eip6963:announceProvider');
           Object.defineProperty(announcement, 'detail', { value: detail });
@@ -192,16 +216,53 @@ test('EIP-6963 discovery lets the user select a non-default wallet provider', as
   Object.defineProperty(globalThis, 'window', { configurable: true, value: browserWindow });
 
   try {
+    const delayedSnapshots: string[][] = [];
+    const unsubscribe = subscribeBrowserWallets((wallets) => {
+      delayedSnapshots.push(wallets.map((wallet) => wallet.id));
+    });
+    const legacyWallets = await discoverBrowserWallets(0);
+    assert.deepEqual(legacyWallets.map(({ id }) => id), ['legacy-window-ethereum']);
+    assert.equal(getBrowserWalletProvider(), undefined);
+    await assert.rejects(connectWalletAndVerifyChain(false), /No compatible Web3 wallet/i);
+    assert.deepEqual(defaultCalls, []);
+
+    for (const detail of announcements) {
+      const announcement = new Event('eip6963:announceProvider');
+      Object.defineProperty(announcement, 'detail', { value: detail });
+      events.dispatchEvent(announcement);
+    }
+    assert.deepEqual(delayedSnapshots.at(-1), ['wallet-a', 'wallet-b']);
+    unsubscribe();
+    announceOnRequest = true;
     const wallets = await discoverBrowserWallets(0);
     assert.deepEqual(wallets.map(({ id, name }) => ({ id, name })), [
       { id: 'wallet-a', name: 'Default Wallet' },
       { id: 'wallet-b', name: 'Selected Wallet' },
     ]);
+    assert.equal(listenerAdds, 1);
+    assert.equal(listenerRemovals, 0);
+    assert.equal(getBrowserWalletProvider(), undefined);
+    assert.deepEqual(defaultCalls, []);
+
     selectBrowserWalletProvider(wallets[1]);
     assert.equal(getBrowserWalletProvider(), selectedProvider);
-    assert.equal(browserWindow.sessionStorage.getItem('licensescope.walletProvider'), 'wallet-b');
     assert.equal(await connectWalletAndVerifyChain(false), accountB.address);
-    assert.deepEqual(selectedCalls, ['eth_requestAccounts', 'eth_chainId']);
+    await signBrowserWalletConnection(accountB.address);
+    assert.equal(await reconnectWalletAndVerifyChain(false), accountB.address);
+    assert.equal(await disconnectBrowserWallet(), true);
+    assert.equal(getBrowserWalletProvider(), undefined);
+    assert.equal(browserWindow.sessionStorage.getItem('licensescope.walletProvider'), null);
+    assert.deepEqual(selectedCalls, [
+      'eth_requestAccounts',
+      'eth_chainId',
+      'personal_sign',
+      'eth_accounts',
+      'wallet_requestPermissions',
+      'eth_requestAccounts',
+      'eth_chainId',
+      'wallet_revokePermissions',
+      'eth_accounts',
+    ]);
     assert.deepEqual(defaultCalls, []);
   } finally {
     if (previous) Object.defineProperty(globalThis, 'window', previous);
