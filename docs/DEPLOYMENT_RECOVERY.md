@@ -3,13 +3,29 @@
 ## Gate status
 
 - Classification: `UPGRADABLE`
-- Checkpoint: `POST_DEPLOY_TEST` in progress after authorized main-contract upgrade
+- Checkpoint: `PRE_DEPLOY` for the judge-requested complete-source correction
 - Redeployment authorization: **CONSUMED** for transaction `0xd28ff503fa44f073ed4f741427a809fa6c1717bb1f05b64901828cb0b71705d5`
-- Current deployment: **UPGRADED IN PLACE** with finalized successful execution, exact deployed-source parity, and preserved assessment state
+- Current deployment: **PRIOR PUBLIC REVISION REMAINS INSTALLED**; judge-correction candidate is local only
 - Safe upgrade rehearsal: **COMPLETED** on disposable contract `0xF1FF7a9Faa9A9800237e945F97b69Ac837D30193`
-- Main-contract upgrade authorization: **CONSUMED** for transaction `0x002f06c175fc2ea35e4f8b99f2c2562105b952073d8460baed786c925ce3dbd6`
+- Prior main-contract upgrade authorization: **CONSUMED** for transaction `0x002f06c175fc2ea35e4f8b99f2c2562105b952073d8460baed786c925ce3dbd6`
+- Judge-correction main-contract upgrade authorization: **NOT GRANTED**
 
 The user selected one public wallet for both deployment and upgrade authority. No private key, seed phrase, token, credential, or wallet export belongs in this document.
+
+## Judge-correction candidate
+
+| Field | Value |
+|---|---|
+| Implementation commit | `febf6a1b1e3e89b8b05f939cb6b9f7c0df41d089` |
+| Implementation tree | `460f5f58d2faf1ea6e42ee9fedd6d112327ce399` |
+| Candidate contract SHA-256 | `c3a51d4cb13f63433a3aaae4f3600deb4292e8cffad1a65d6261378b8984bbff` |
+| Candidate policy manifest hash | `sha256:696833070a2262ebcd178648b21957a883d62c2d7c0112a007d1143ec3720fbc` |
+| Target contract | `0x8f1e48e52241E1B8b3320b953901ec7eeE481Ac7` |
+| Persistent storage layout change | None |
+| Main-contract authorization | Not granted |
+| Candidate installed | No |
+
+The candidate removes all partial-source terminal evaluation: complete accepted source bodies are evaluated or the result fails closed to `UNRESOLVED`. A fresh exact-revision `PRE_DEPLOY` approval and separate user authorization are required before any main-contract upgrade.
 
 ## Intended deployment
 
@@ -34,7 +50,7 @@ The user selected one public wallet for both deployment and upgrade authority. N
 
 The same wallet fills both roles. This concentrates deployment identity and code-replacement authority in one key: key loss may make recovery impossible, while key compromise may permit code replacement. The recorded deployment and main upgrade authorizations are consumed; no further deployment or upgrade is authorized.
 
-## Upgrade candidate
+## Historical prior upgrade candidate
 
 | Field | Value |
 |---|---|

@@ -17,7 +17,8 @@ The accepted Studionet contract, public source repository, and production fronte
 - Contract: `0x8f1e48e52241E1B8b3320b953901ec7eeE481Ac7`
 - Upgrade transaction: `0x002f06c175fc2ea35e4f8b99f2c2562105b952073d8460baed786c925ce3dbd6`
 - Policy: `LS-V1`
-- Policy manifest hash: `sha256:1105b19ea7786bbd5ace24445845997e914e726cd2f80ddf83d8a6f8f8769532`
+- Deployed policy manifest hash: `sha256:1105b19ea7786bbd5ace24445845997e914e726cd2f80ddf83d8a6f8f8769532`
+- Pending complete-source repair policy hash: `sha256:696833070a2262ebcd178648b21957a883d62c2d7c0112a007d1143ec3720fbc`
 
 ## Trust problem
 
@@ -164,7 +165,7 @@ Current exact results and evidence scope are recorded in `docs/VERIFICATION.md`.
 
 ## Deployment
 
-Release deployment is Studionet-only. The public deployment-wallet and external-upgrader address are recorded in `docs/DEPLOYMENT_RECOVERY.md`. The main contract was upgraded in place by the authorized wallet with the exact reviewed source; transaction, deployed-source parity, preserved-state readback, and a successful post-upgrade `BLOCK / EXACT` lifecycle are recorded there. The public repository and Vercel frontend are live; multi-account application evidence remains pending, so no Task-completion claim is made.
+Release deployment is Studionet-only. The public deployment-wallet and external-upgrader address are recorded in `docs/DEPLOYMENT_RECOVERY.md`. The main contract was previously upgraded in place and its successful `BLOCK / EXACT` lifecycle remains historical evidence. The judge-requested complete-source repair at implementation commit `febf6a1b1e3e89b8b05f939cb6b9f7c0df41d089` is a local candidate only: it has not been authorized, installed, pushed, or deployed to Vercel.
 
 The secret-free manifest, storage compatibility policy, reset recovery procedures, and completed disposable rehearsal evidence are in `docs/DEPLOYMENT_RECOVERY.md`.
 
@@ -175,6 +176,7 @@ The secret-free manifest, storage compatibility policy, reset recovery procedure
 - Source text, prompts, role overrides, and self-declared verdicts are untrusted data.
 - Deterministically recognized licenses outrank evaluator-provided labels.
 - Custom or unknown terms fail closed to `UNRESOLVED`.
+- Terminal verdicts require every non-empty fetched source body to be evaluated in full. Missing, malformed, oversized, or prompt-bound-exceeding source sets fail closed without prefix evaluation.
 - Evidence references are contract-derived and revision-bound.
 - Strict bounded parsing rejects malformed enum, boolean, tuple, receipt, and JSON-array shapes.
 - Receipt normalization accepts the current Studionet SDK field variants only when named, snake-case, and numeric representations agree; successful writes still require `FINALIZED`, an allowed consensus result, every leader execution to succeed, and exact contract readback.

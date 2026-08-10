@@ -6,14 +6,18 @@
 |---|---|
 | Project | LicenseScope |
 | Submission category | `PROJECT` |
-| Checkpoint | POST_GITHUB_VERCEL_FINAL evidence preparation |
-| Upgrade-candidate implementation commit | `d0577dbde2e9d4b93f128173607434ecc7aa6149` |
+| Checkpoint | `PRE_DEPLOY` judge-requested complete-source correction |
+| Correction implementation commit | `febf6a1b1e3e89b8b05f939cb6b9f7c0df41d089` |
+| Correction implementation tree | `460f5f58d2faf1ea6e42ee9fedd6d112327ce399` |
+| Correction implementation parent | `a56471620482f6e1e3c1d829d003fc95c80c5239` |
+| Prior upgrade-candidate implementation commit | `d0577dbde2e9d4b93f128173607434ecc7aa6149` |
 | Frontend receipt/finality implementation commit | `d0577dbde2e9d4b93f128173607434ecc7aa6149` |
 | Contract source | `contracts/license_scope.py` |
-| Upgrade-candidate contract SHA-256 | `8afec2c2ce17e5542c3c5ca2343c8d454de48e27980273b1382fc621e1282890` |
+| Correction-candidate contract SHA-256 | `c3a51d4cb13f63433a3aaae4f3600deb4292e8cffad1a65d6261378b8984bbff` |
 | Currently deployed contract SHA-256 | `8afec2c2ce17e5542c3c5ca2343c8d454de48e27980273b1382fc621e1282890` |
 | Policy version | `LS-V1` |
-| Policy manifest hash | `sha256:1105b19ea7786bbd5ace24445845997e914e726cd2f80ddf83d8a6f8f8769532` |
+| Correction-candidate policy manifest hash | `sha256:696833070a2262ebcd178648b21957a883d62c2d7c0112a007d1143ec3720fbc` |
+| Currently deployed policy manifest hash | `sha256:1105b19ea7786bbd5ace24445845997e914e726cd2f80ddf83d8a6f8f8769532` |
 | Network target | GenLayer Studionet, chain ID `61999` |
 | Selected deployment wallet | `0x7885536194bbd6e1d0a6ab991ab215cfa9542339` |
 | Selected external upgrader | `0x7885536194bbd6e1d0a6ab991ab215cfa9542339` |
@@ -28,9 +32,26 @@
 | Explorer | `https://explorer-studio.genlayer.com/` |
 | Live web | `https://license-scope.vercel.app` |
 
+The correction candidate is not installed on the main contract. No new upgrade, wallet action, RPC write, GitHub push, or Vercel deployment is authorized by this document. Historical deployment and lifecycle evidence below remains evidence for the previous public revision only.
+
+## Judge-requested complete-source correction
+
+Judge request: prevent terminal assessments whenever decision-relevant license text was not evaluated; evaluate the full bounded source or fail closed, and add a regression with a permissive prefix followed by a restrictive clause after the previous cutoff.
+
+| Closure item | Exact correction |
+|---|---|
+| Root cause | Each non-empty source was silently reduced to its first 4,000 characters and the assembled prompt was silently reduced to 20,000 UTF-8 bytes. Source fetch errors other than absence could also be ignored when another source succeeded. |
+| Contract behavior | The 4,000-character and prompt-prefix truncation paths are removed. A `200` source must contain a valid bounded UTF-8 byte body, every non-empty body is included in full, and the complete assembled prompt must fit `MAX_PROMPT_BYTES`. Only `404` means an optional derived file is absent. Any other status, response-shape error, request exception, oversized body, or oversized complete prompt returns `UNRESOLVED` before LLM evaluation. |
+| Receipt binding | A terminal decision can now reference only immutable commit-derived URLs whose complete accepted response bodies were evaluated. No terminal decision is produced from a byte or character range, so no partial-range receipt exists. |
+| Policy binding | The executable manifest adds `terminal_verdict_requires_full_source_evaluation: true`; its reproducible hash is `sha256:696833070a2262ebcd178648b21957a883d62c2d7c0112a007d1143ec3720fbc`. |
+| Required adversarial regression | A source longer than the former 4,000-character cutoff contains an MIT-style permissive prefix and a later `NO COMMERCIAL USE` clause. The mock evaluator asserts that the suffix is present in the actual prompt, and the assessment resolves `BLOCK / EXPLICIT_USE_RESTRICTION`. |
+| Additional fail-closed regressions | A complete source set exceeding the prompt bound never calls the evaluator and returns `UNRESOLVED / INSUFFICIENT_EVIDENCE`; oversized, `500`, and exception-producing decision-relevant sources return `UNRESOLVED` even when a valid MIT license was already fetched. |
+| Storage/upgrade compatibility | `AssessmentRecord`, storage declarations, public methods, and method count are unchanged. Only evaluation logic and the policy manifest hash change. |
+| Live evidence | Pending separate main-contract upgrade authorization and fresh exact-source PRE_DEPLOY approval. Prior live transactions do not prove this correction. |
+
 Anonymous `PRE_DEPLOY` approval was granted for package `0b9b61200b5e2cb88d0e6747d055a34cdedd7a13`, and its contract source was deployed successfully. Live lifecycle testing then found that the deployed source used `gl.nondet.web.get()` while requiring `response.status_code`; two finalized resolution attempts safely returned `UNRESOLVED / SOURCE_MISSING` because Studionet supplied no such attribute and the fail-closed default became `0`. A first repair at `a70dd74e395e71a5e165b085ebb3714125473030` remained incompatible because the exact pinned `py-lib-genlayer-std` response exposes `status`, not `status_code`. Candidate implementation `d0577dbde2e9d4b93f128173607434ecc7aa6149` closes that issue with strict dual-shape status normalization, bounded user-cancellable same-hash recovery, and one page-level transaction coordinator shared by every write surface. Exact package `184cf86a651f92aa3bbec9f2a687e1b1b74bd08a` and the later rehearsal evidence revision `fd5ad56934856706ac1798e77fe194f214aadd43` received anonymous `PRE_DEPLOY` approval. The user then separately authorized and submitted the main-contract upgrade recorded below.
 
-## Successful redeployment core evidence
+## Historical prior release: successful redeployment core evidence
 
 - Transaction `0xd28ff503fa44f073ed4f741427a809fa6c1717bb1f05b64901828cb0b71705d5` reached `FINALIZED`.
 - The production frontend validator normalized the real response as `FINISHED_WITH_RETURN` and `MAJORITY_AGREE`.
@@ -63,7 +84,7 @@ The public GitHub commit endpoint independently returned HTTP `200`, so the repe
 - User-observed manual browser evidence confirmed that `Connect & Sign` requested a wallet signature as intended. This observation was not independently automated or reproduced by the reviewer.
 - Submit, resolve, and retry use one coordinator mounted above both Request and Registry surfaces. It takes a synchronous page-wide mutex before wallet connection and before any `writeContract` invocation, then replaces the broadcasting state with one versioned, contract/account/action-bound persisted hash immediately after broadcast. Same-tab subscribers update together; saved and cleared records synchronize to other browser contexts through the contract-specific `storage` event. Reconciliation is limited to three SDK rounds of 20 polls, retries only classified transient failures, supports cancellation, and stops on permanent errors. On exhaustion or reload the UI exposes `Resume existing Tx`; every page write remains locked until the same hash reaches validated finality and exact readback.
 - Registry search accepts `1` and `#1`, and filtered-empty state is distinguished from an empty registry.
-- The main contract is now upgraded in place; exact deployed-source parity and preserved-state readback are recorded below.
+- The main contract was upgraded in place to the prior public revision; exact deployed-source parity and preserved-state readback for that historical revision are recorded below.
 
 ## Main-contract upgrade evidence
 
@@ -156,7 +177,7 @@ env -u PYTHONPATH uv run pytest tests/direct -v
 Result:
 
 ```text
-54 passed
+59 passed
 ```
 
 Coverage includes:
@@ -177,6 +198,9 @@ Coverage includes:
 - exact leader/validator callback counts without a third evaluator run;
 - exact pinned `Response(status=...)`, documented `status_code`, agreeing dual fields, and rejection of missing, boolean, out-of-range, and contradictory status representations;
 - malformed source, 404, 500, timeout, and empty-body handling;
+- full evaluation beyond the former 4,000-character cutoff, including a restrictive suffix after a permissive prefix;
+- no evaluator call for a complete source set that exceeds the prompt bound;
+- fail-closed behavior when any decision-relevant source is oversized, unavailable, or throws after another valid source was fetched;
 - terminal immutability, retry atomic reset, retry limit, and duplicate key rejection;
 - end-to-end `CONDITIONAL` and `BLOCK` outcomes in direct mode.
 
@@ -225,9 +249,11 @@ npm audit --audit-level=high: PASS; one PostCSS advisory affects two nested Post
 
 The lockfile resolves both existing PostCSS dependency paths to `nanoid@3.3.18`, replacing vulnerable `3.3.16` after `GHSA-2v37-7h3g-55p8` entered the audit database. This compatible transitive-only refresh changes no declared dependency or application source; clean `npm ci` installed the corrected lock and the high-threshold audit exits successfully.
 
-The frontend tests cover both legacy camel-case and sanitized current-Studionet response shapes; numeric/name and camel/snake contradiction rejection; optional-but-noncontradictory `consensus_data.final`; mandatory non-empty leader receipts; leader execution, decoded result, and GenVM error rejection; replay of the retained finalized-with-error transaction; explicit rejection of non-final `ACCEPTED`; strict record parsing; immutable identity readback; terminal-state invariants; finite same-hash transient reconciliation; permanent-error stop; pre-flight and in-flight cancellation; exact retry exhaustion; versioned pending-hash persistence; hash-matched clearing; malformed-storage fail-closed behavior; common-provider page wiring; Request blocking Resolve/Retry before the first await; Resolve blocking Submit; single-write concurrency; shared subscriber updates; persisted save/clear synchronization across browser contexts; explicit registry read-error state instead of false empty state; no-provider-before-selection enforcement; page-lifetime EIP-6963 discovery; delayed provider capture; legacy-provider enumeration; non-default provider routing across account, chain, signature, permission, and disconnect operations; wallet-dialog wiring; cryptographically matched wallet signatures; well-formed wrong-signer rejection; account changes during signing; refused signatures; A-to-B-to-A marker invalidation; soft-disconnect write blocking; and modal focus cycling plus Escape, `inert` background, initial-focus, and focus-restoration wiring. A read-only live replay of the retained hash reached the intended validator branch and was rejected specifically with `Leader execution result rejected: ERROR.`
+The frontend tests cover both legacy camel-case and sanitized current-Studionet response shapes; numeric/name and camel/snake contradiction rejection; optional-but-noncontradictory `consensus_data.final`; mandatory non-empty leader receipts; leader execution, decoded result, and GenVM error rejection; replay of the retained finalized-with-error transaction; explicit rejection of non-final `ACCEPTED`; strict record parsing; immutable identity readback; terminal-state invariants; finite same-hash transient reconciliation; permanent-error stop; pre-flight and in-flight cancellation; exact retry exhaustion; versioned pending-hash persistence; hash-matched clearing; malformed-storage fail-closed behavior; common-provider page wiring; Request blocking Resolve/Retry before the first await; Resolve blocking Submit; single-write concurrency; shared subscriber updates; persisted save/clear synchronization across browser contexts; explicit registry read-error state instead of false empty state; no-provider-before-selection enforcement; page-lifetime EIP-6963 discovery; delayed provider capture; legacy-provider enumeration; non-default provider routing across account, chain, signature, permission, and disconnect operations; wallet-dialog wiring; cryptographically matched wallet signatures; well-formed wrong-signer rejection; account changes during signing; refused signatures; A-to-B-to-A marker invalidation; soft-disconnect write blocking; and modal focus cycling plus Escape, `inert` background, initial-focus, and focus-restoration wiring. A prior read-only live replay of the retained hash reached the intended validator branch and was rejected specifically with `Leader execution result rejected: ERROR.`
 
-A detached clean worktree at implementation commit `d0577dbde2e9d4b93f128173607434ecc7aa6149` reproduced both stacks from lockfiles: a fresh Python 3.13 environment installed and checked all 57 locked packages, passed GenVM lint/validation, 54 direct tests, and the truthful 3-test integration selection skipped; `npm ci` installed 378 frontend packages with zero vulnerabilities, followed by 35 frontend tests, typecheck, lint, production build, and audit all passing.
+For correction implementation commit `febf6a1b1e3e89b8b05f939cb6b9f7c0df41d089`, the current installed locked environments produced: GenVM lint `3/3` and contract validation `8 methods`; `59 passed` direct tests; `3 skipped` default integration selection; all `57` Python packages compatible; `47 passed` frontend tests; TypeScript, ESLint, Next.js production build, and static `/` generation passed; high-threshold audit exited successfully with three moderate and zero high/critical findings. No fresh dependency installation was needed because dependencies and both lockfiles are unchanged from the reviewed parent.
+
+Historical baseline evidence: a detached clean worktree at implementation commit `d0577dbde2e9d4b93f128173607434ecc7aa6149` reproduced both stacks from lockfiles: a fresh Python 3.13 environment installed and checked all 57 locked packages, passed GenVM lint/validation, 54 direct tests, and the truthful 3-test integration selection skipped; `npm ci` installed 378 frontend packages with zero vulnerabilities, followed by 35 frontend tests, typecheck, lint, production build, and audit all passing.
 
 The build detects a protected local `frontend/.env.local`; its content is not part of this evidence and must never be committed or disclosed.
 
@@ -240,6 +266,8 @@ The build detects a protected local `frontend/.env.local`; its content is not pa
 5. **Current Studionet receipt normalization — CLOSED.** Commit `248e49db1225d589719709d05056d4295740431f` accepts current Studio responses without legacy top-level execution fields or `consensus_data.final`, but only after official finality, consistent status/result representations, allowed consensus, and successful non-empty leader receipts. Optional decoded result and GenVM fields must not contradict success. Sanitized success proceeds to readback; the retained failed transaction is rejected on its actual `execution_result: ERROR` rather than on a missing legacy field.
 6. **Integration-fixture observation — CLOSED FOR PRE_DEPLOY PLAN.** The fabricated happy-path SHA was replaced by a verified real immutable CC-BY-NC-4.0 repository revision with exact `BLOCK` assertions. Live execution remains deferred to `POST_DEPLOY_TEST`.
 
+7. **Judge complete-source request — CLOSED OFFLINE, LIVE PROOF PENDING.** Commit `febf6a1b1e3e89b8b05f939cb6b9f7c0df41d089` removes both silent cutoffs, fails closed for any incomplete derived source, binds terminal results to fully evaluated immutable responses, and passes the required permissive-prefix/restrictive-suffix regression plus oversized/unavailable/error regressions. Main-contract installation remains unauthorized and unperformed.
+
 ## Proof matrix
 
 | Actor/action | UI/operational path | Contract method | Offline evidence | Live transaction/readback |
@@ -247,10 +275,10 @@ The build detects a protected local `frontend/.env.local`; its content is not pa
 | Requester creates assessment | Request form + browser wallet | `request_assessment` | Direct pending/duplicate tests; frontend finality/readback tests | `0x9df088...93b73`; assessment #1 `PENDING` readback |
 | Resolver evaluates pending assessment | Registry resolve action | `resolve_assessment` | Direct evidence/consensus/adversarial tests; frontend terminal readback tests | Pre-upgrade defect evidence: `0x1695ce...e54b5`, `0x15fb12...d4cbf`. Post-upgrade success: `0x98a473...9c562`; `BLOCK / EXACT`, sufficient immutable evidence |
 | Retry caller resets unresolved record | Registry retry action | `retry_assessment` | Direct atomic-reset/limit tests; frontend PENDING invariant tests | `0xa67eb7...edf2f` reached retry count `1`; post-upgrade `0x1e245e...41fdd` atomically reached `PENDING`, retry count `2` |
-| External upgrader replaces code | Documented operational path | `upgrade` | Direct registration/authorization/no-mutation/empty-code tests | Main: `0x002f06...3dbd6`; exact candidate hash and preserved assessment #1. Disposable rehearsal: `0xca98a65...4505e3`; negative tests `0x9a4c15...fba2e2`, `0xd3f009...fa61bd`, `0x39e6df...11e904` |
+| External upgrader replaces code | Documented operational path | `upgrade` | Direct registration/authorization/no-mutation/empty-code tests | Historical main upgrade: `0x002f06...3dbd6`; exact prior-candidate hash and preserved assessment #1. Disposable rehearsal: `0xca98a65...4505e3`; negative tests `0x9a4c15...fba2e2`, `0xd3f009...fa61bd`, `0x39e6df...11e904` |
 | Reader inspects records/policy | Registry/detail views | contract view methods | Direct view tests; strict frontend parser tests |  |
 
-The retained lifecycle rows prove writes, finality, safe failure/retry behavior, upgraded-source parity, and the successful verdict branch. They do not yet satisfy the multi-account requirement at `POST_DEPLOY_TEST`.
+The retained lifecycle rows prove writes, finality, safe failure/retry behavior, prior upgraded-source parity, and the successful verdict branch. They do not prove the judge correction and do not yet satisfy the multi-account requirement at `POST_DEPLOY_TEST`.
 
 ## Source-of-truth and security findings
 
