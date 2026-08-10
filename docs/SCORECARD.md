@@ -13,7 +13,7 @@ LicenseScope is a `PROJECT`, not a standalone `INTELLIGENT_CONTRACT`: the delive
 
 **Evidence:** The consensus-critical question—whether public license evidence for an immutable artifact revision supports a specific intended-use profile—cannot be established by a deterministic contract alone. The contract derives bounded evidence, runs independent leader/validator evaluation through GenLayer, compares stable consequences, and stores the final attestation on-chain.
 
-**Live proof:** Assessment `#2` resolved on the corrected source to `BLOCK / EXPLICIT_USE_RESTRICTION`, with subject and revision `EXACT`, sufficient immutable evidence, and `CC-BY-NC-4.0` bound against `COMMERCIAL_REDISTRIBUTION`. Transaction `0x2340d9a261c9aff0b481b4bb4d8fe404d038bbc900f220fa2a65f130dfdda430` reached `FINALIZED / MAJORITY_AGREE` with successful leader execution. An earlier `UNDETERMINED / MAJORITY_DISAGREE` attempt left the record exactly unchanged, proving the safe no-mutation path.
+**Live proof:** Assessment `#2` resolved on the corrected source to `BLOCK / EXPLICIT_USE_RESTRICTION`, with subject and revision `EXACT`, sufficient immutable evidence, and `CC-BY-NC-4.0` bound against `COMMERCIAL_REDISTRIBUTION`. Transaction `0x2340d9a261c9aff0b481b4bb4d8fe404d038bbc900f220fa2a65f130dfdda430` reached `FINALIZED / MAJORITY_AGREE` with successful leader execution. The earlier attempt `0x06942fe5358d40520fefcf9d0431c5a352ee670b2547dc8336eebe6502a4e075` is authoritatively `FINALIZED / MAJORITY_DISAGREE`; its recorded immediate readback remained `PENDING`, although that historical snapshot cannot be reconstructed from current state.
 
 **Remaining weakness:** V1 supports only public GitHub repositories at immutable commit SHAs.
 
