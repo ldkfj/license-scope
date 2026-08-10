@@ -7,8 +7,10 @@ import {
   isContractConfigured,
   getClient,
   CONTRACT_ADDRESS,
+  assertAssessmentUnchanged,
   connectWalletAndVerifyChain,
   getExplorerTxLink,
+  getGenLayerReceiptStatus,
   validateGenLayerReceipt,
   parseAssessmentRecord,
   assertSameAssessmentIdentity,
@@ -50,6 +52,30 @@ export const AssessmentList: React.FC<AssessmentListProps> = ({
   const pendingTx = coordinatorState.phase === 'pending' ? coordinatorState.transaction : null;
   const coordinatorError = coordinatorState.phase === 'blocked' ? coordinatorState.error : null;
 
+  const clearVerifiedTerminalFailure = async (
+    pending: PendingAssessmentTransaction,
+    record: AssessmentRecord,
+    client: ReturnType<typeof getClient>,
+    receiptStatus: string,
+    failure: string,
+  ) => {
+    const rawReadback = await client.readContract({
+      address: CONTRACT_ADDRESS as `0x${string}`,
+      functionName: 'get_assessment',
+      args: [BigInt(record.assessment_id)],
+    });
+    const rec = parseAssessmentRecord(rawReadback);
+    assertAssessmentUnchanged(record, rec);
+
+    const storage = browserStorage();
+    if (!storage || !coordinator.complete(pending.hash, storage)) {
+      throw new Error('Verified terminal failure could not be cleared from the shared coordinator.');
+    }
+    setStatusMsg(`${pending.action} ended ${receiptStatus} with no state change. The assessment is safe to retry.`);
+    setErrorMsg(failure);
+    await onRefresh();
+  };
+
   const reconcileAssessment = async (pending: PendingAssessmentTransaction, record: AssessmentRecord) => {
     const accountAddr = await connectWalletAndVerifyChain();
     if (accountAddr.toLowerCase() !== pending.account.toLowerCase()) {
@@ -61,22 +87,47 @@ export const AssessmentList: React.FC<AssessmentListProps> = ({
     const client = getClient(accountAddr);
     setActiveTxHash(pending.hash);
     setStatusMsg(`Reconciling existing ${pending.action} hash for #${record.assessment_id}. No new transaction will be broadcast...`);
-    const controller = new AbortController();
-    reconciliationController.current = controller;
-    try {
-      await waitForFinalizedTransaction(
-        client,
-        pending.hash as Parameters<typeof client.waitForTransactionReceipt>[0]['hash'],
-        ({ round, maxRounds }) => setStatusMsg(`Studionet is still processing this same hash (bounded reconciliation ${round}/${maxRounds})...`),
-        { signal: controller.signal },
-      );
-    } finally {
-      if (reconciliationController.current === controller) reconciliationController.current = null;
-    }
-    const receipt = await client.getTransaction({
+    let receipt = await client.getTransaction({
       hash: pending.hash as Parameters<typeof client.getTransaction>[0]['hash'],
     });
-    const { status: receiptStatus, executionResult, consensusResult } = validateGenLayerReceipt(receipt);
+    let receiptStatus = getGenLayerReceiptStatus(receipt);
+    const unsuccessfulTerminalStatuses = new Set(['UNDETERMINED', 'CANCELED', 'VALIDATORS_TIMEOUT', 'LEADER_TIMEOUT']);
+    if (unsuccessfulTerminalStatuses.has(receiptStatus)) {
+      await clearVerifiedTerminalFailure(pending, record, client, receiptStatus, `Transaction ended ${receiptStatus}; contract state was unchanged.`);
+      return;
+    }
+
+    if (receiptStatus !== 'FINALIZED') {
+      const controller = new AbortController();
+      reconciliationController.current = controller;
+      try {
+        await waitForFinalizedTransaction(
+          client,
+          pending.hash as Parameters<typeof client.waitForTransactionReceipt>[0]['hash'],
+          ({ round, maxRounds }) => setStatusMsg(`Studionet is still processing this same hash (bounded reconciliation ${round}/${maxRounds})...`),
+          { signal: controller.signal },
+        );
+      } finally {
+        if (reconciliationController.current === controller) reconciliationController.current = null;
+      }
+      receipt = await client.getTransaction({
+        hash: pending.hash as Parameters<typeof client.getTransaction>[0]['hash'],
+      });
+      receiptStatus = getGenLayerReceiptStatus(receipt);
+    }
+
+    let executionResult: string;
+    let consensusResult: string;
+    try {
+      ({ executionResult, consensusResult } = validateGenLayerReceipt(receipt));
+    } catch (error: unknown) {
+      const failure = error instanceof Error ? error.message : String(error);
+      if (receiptStatus === 'FINALIZED' || unsuccessfulTerminalStatuses.has(receiptStatus)) {
+        await clearVerifiedTerminalFailure(pending, record, client, receiptStatus, failure);
+        return;
+      }
+      throw error;
+    }
     setStatusMsg(`Receipt ${receiptStatus}; consensus ${consensusResult}; execution ${executionResult}. Verifying contract readback...`);
     const rawReadback = await client.readContract({
       address: CONTRACT_ADDRESS as `0x${string}`,

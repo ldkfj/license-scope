@@ -2,13 +2,15 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 
 import {
+  assertAssessmentUnchanged,
   assertSameAssessmentIdentity,
   assertTerminalRecord,
+  getGenLayerReceiptStatus,
   parseAssessmentRecord,
   validateGenLayerReceipt,
 } from '../src/lib/validation.ts';
 
-const POLICY_HASH = 'sha256:1105b19ea7786bbd5ace24445845997e914e726cd2f80ddf83d8a6f8f8769532';
+const POLICY_HASH = 'sha256:696833070a2262ebcd178648b21957a883d62c2d7c0112a007d1143ec3720fbc';
 
 function successfulReceipt(): {
   statusName: string;
@@ -122,6 +124,17 @@ test('current Studionet success shape proceeds without legacy top-level executio
     executionResult: 'FINISHED_WITH_RETURN',
     consensusResult: 'MAJORITY_AGREE',
   });
+});
+
+test('terminal undetermined status is recognized before same-hash reconciliation', () => {
+  assert.equal(getGenLayerReceiptStatus({ status: 6, status_name: 'UNDETERMINED' }), 'UNDETERMINED');
+});
+
+test('terminal status representations must agree before clearing a write lock', () => {
+  assert.throws(
+    () => getGenLayerReceiptStatus({ status: 6, status_name: 'FINALIZED' }),
+    /representations disagree/i,
+  );
 });
 
 test('retained finalized-with-error Studionet transaction fails on leader execution', () => {
@@ -282,6 +295,19 @@ test('resolve readback rejects any changed canonical identity field', () => {
   assert.doesNotThrow(() => assertSameAssessmentIdentity(before, after));
   assert.throws(() => assertSameAssessmentIdentity(before, { ...after, revision: `b${after.revision.slice(1)}` }), /revision/i);
   assert.throws(() => assertSameAssessmentIdentity(before, { ...after, policy_hash: `sha256:${'0'.repeat(64)}` }), /policy_hash/i);
+});
+
+test('terminal failure readback accepts a byte-equivalent assessment state', () => {
+  const record = parseAssessmentRecord(pendingRecord());
+  assert.doesNotThrow(() => assertAssessmentUnchanged(record, { ...record }));
+});
+
+test('terminal failure readback rejects any changed mutable state field', () => {
+  const record = parseAssessmentRecord(pendingRecord());
+  assert.throws(
+    () => assertAssessmentUnchanged(record, { ...record, retry_count: 1 }),
+    /retry_count/i,
+  );
 });
 
 test('terminal readback enforces verdict-specific evidence invariants', () => {

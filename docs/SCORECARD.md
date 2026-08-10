@@ -13,7 +13,7 @@ LicenseScope is a `PROJECT`, not a standalone `INTELLIGENT_CONTRACT`: the delive
 
 **Evidence:** The consensus-critical question—whether public license evidence for an immutable artifact revision supports a specific intended-use profile—cannot be established by a deterministic contract alone. The contract derives bounded evidence, runs independent leader/validator evaluation through GenLayer, compares stable consequences, and stores the final attestation on-chain.
 
-**Historical live proof:** Assessment `#1` resolved on the prior public source to `BLOCK / EXPLICIT_USE_RESTRICTION`, with subject and revision `EXACT`, sufficient immutable evidence, and `CC-BY-NC-4.0` bound against `COMMERCIAL_INFERENCE`. Transaction `0x98a4739d8c7c02e271587c432d8d0419a68819a6cf51bd6522cedc522259c562` reached `FINALIZED / MAJORITY_AGREE` with successful leader execution. This transaction does not prove the pending complete-source correction.
+**Live proof:** Assessment `#2` resolved on the corrected source to `BLOCK / EXPLICIT_USE_RESTRICTION`, with subject and revision `EXACT`, sufficient immutable evidence, and `CC-BY-NC-4.0` bound against `COMMERCIAL_REDISTRIBUTION`. Transaction `0x2340d9a261c9aff0b481b4bb4d8fe404d038bbc900f220fa2a65f130dfdda430` reached `FINALIZED / MAJORITY_AGREE` with successful leader execution. An earlier `UNDETERMINED / MAJORITY_DISAGREE` attempt left the record exactly unchanged, proving the safe no-mutation path.
 
 **Remaining weakness:** V1 supports only public GitHub repositories at immutable commit SHAs.
 
@@ -21,13 +21,13 @@ LicenseScope is a `PROJECT`, not a standalone `INTELLIGENT_CONTRACT`: the delive
 
 **Evidence:** Canonical identity and full commit SHA are enforced; caller-supplied evidence URLs and verdicts are absent; deterministic license reconciliation outranks evaluator labels; malformed or contradictory evidence fails closed; terminal results require complete source evaluation; consensus disagreement preserves safe state; retry is bounded; and upgrade authorization plus empty-code rejection are explicit.
 
-**Historical live proof:** The main contract was upgraded in place with exact prior-source parity and preserved assessment state. A populated disposable-contract rehearsal verified successful authorized upgrade and state preservation. The rehearsal address is prohibited from release use. The complete-source correction has not been installed.
+**Current live proof:** The main contract was upgraded in place by transaction `0x93187fa0858d8089a7708c38d81a2d78e2e6bdc30e366f2d14dff8abc78e54d1`. The transaction reached `FINALIZED / MAJORITY_AGREE`, both leader receipts succeeded without error, live source SHA-256 matched `c3a51d4cb13f63433a3aaae4f3600deb4292e8cffad1a65d6261378b8984bbff`, the active policy hash matched `sha256:696833070a2262ebcd178648b21957a883d62c2d7c0112a007d1143ec3720fbc`, and assessment `#1` remained unchanged. A populated disposable-contract rehearsal separately verified authorized upgrade and state preservation; its address is prohibited from release use.
 
 **Remaining weakness:** Native Root locked-slot enforcement was not independently isolated from the contract's explicit upgrader guard.
 
 ## Engineering: 4/5
 
-**Evidence:** Python 3.13 and frontend dependencies are locked. GenVM lint and contract validation pass; 59 direct contract tests pass; the three live integration selections truthfully skip without explicit live authorization; 47 frontend behavior tests, TypeScript, ESLint, and production build pass. High-threshold dependency audit passes with zero high or critical findings; the remaining PostCSS advisory propagates into three moderate package entries and its forced repair would change the exact Next version.
+**Evidence:** Python 3.13 and frontend dependencies are locked. GenVM lint and contract validation pass; 59 direct contract tests pass; the three live integration selections truthfully skip without explicit live authorization; 51 frontend behavior tests, TypeScript, ESLint, and production build pass. High-threshold dependency audit passes with zero high or critical findings; the remaining PostCSS advisory propagates into three moderate package entries and its forced repair would change the exact Next version.
 
 **Release proof:** The public repository is `https://github.com/ldkfj/license-scope`. Forbidden internal files, secrets, local environments, dependencies, caches, `.hallmark`, and working design artifacts are excluded.
 
@@ -41,11 +41,11 @@ LicenseScope is a `PROJECT`, not a standalone `INTELLIGENT_CONTRACT`: the delive
 
 ## Overall evidence-based assessment
 
-LicenseScope has historical matching Studionet contract evidence, upgraded-source parity, successful terminal lifecycle evidence, a public GitHub repository, and a live Vercel frontend. The judge-requested complete-source correction is currently a local PRE_DEPLOY candidate and is not covered by that historical live evidence.
+LicenseScope now has exact Studionet source parity, preserved-state evidence, a safe consensus-disagreement no-mutation result, and a successful correction-specific full-source terminal evaluation, plus a public GitHub repository and a live Vercel frontend.
 
 ```text
-Submission recommendation: NOT READY FOR RESUBMISSION; COMPLETE PRE_DEPLOY REVIEW AND AUTHORIZED UPGRADE FIRST
+Submission recommendation: NOT READY FOR RESUBMISSION; COMPLETE POST_DEPLOY_TEST AND RELEASE REVIEW FIRST
 Task status: NOT YET COMPLETE
 ```
 
-Remaining gates are exact-revision PRE_DEPLOY review, separate user authorization for the main-contract upgrade, upgraded-source parity and live correction evidence, one public GitHub/Vercel release, and final exact-revision review. No further contract deployment, upgrade, or wallet transaction is authorized.
+Remaining gates are anonymous `POST_DEPLOY_TEST` approval, the updated public GitHub/Vercel release, and final exact-revision review. The consumed upgrade authorization grants no authority for another contract transaction.

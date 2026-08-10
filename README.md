@@ -15,10 +15,10 @@ The accepted Studionet contract, public source repository, and production fronte
 - RPC: `https://studio.genlayer.com/api`
 - Explorer: `https://explorer-studio.genlayer.com/`
 - Contract: `0x8f1e48e52241E1B8b3320b953901ec7eeE481Ac7`
-- Upgrade transaction: `0x002f06c175fc2ea35e4f8b99f2c2562105b952073d8460baed786c925ce3dbd6`
+- Complete-source correction upgrade: `0x93187fa0858d8089a7708c38d81a2d78e2e6bdc30e366f2d14dff8abc78e54d1`
 - Policy: `LS-V1`
-- Deployed policy manifest hash: `sha256:1105b19ea7786bbd5ace24445845997e914e726cd2f80ddf83d8a6f8f8769532`
-- Pending complete-source repair policy hash: `sha256:696833070a2262ebcd178648b21957a883d62c2d7c0112a007d1143ec3720fbc`
+- Deployed policy manifest hash: `sha256:696833070a2262ebcd178648b21957a883d62c2d7c0112a007d1143ec3720fbc`
+- Deployed contract source SHA-256: `c3a51d4cb13f63433a3aaae4f3600deb4292e8cffad1a65d6261378b8984bbff`
 
 ## Trust problem
 
@@ -165,7 +165,7 @@ Current exact results and evidence scope are recorded in `docs/VERIFICATION.md`.
 
 ## Deployment
 
-Release deployment is Studionet-only. The public deployment-wallet and external-upgrader address are recorded in `docs/DEPLOYMENT_RECOVERY.md`. The main contract was previously upgraded in place and its successful `BLOCK / EXACT` lifecycle remains historical evidence. The judge-requested complete-source repair at implementation commit `febf6a1b1e3e89b8b05f939cb6b9f7c0df41d089` is a local candidate only: it has not been authorized, installed, pushed, or deployed to Vercel.
+Release deployment is Studionet-only. The public deployment-wallet and external-upgrader address are recorded in `docs/DEPLOYMENT_RECOVERY.md`. The judge-requested complete-source repair at implementation commit `febf6a1b1e3e89b8b05f939cb6b9f7c0df41d089` was installed in place by transaction `0x93187fa0858d8089a7708c38d81a2d78e2e6bdc30e366f2d14dff8abc78e54d1`. Read-only verification matched the exact deployed source hash, activated the new policy hash, and preserved assessment `#1`. Correction-specific assessment `#2` then resolved through the installed full-source path to `BLOCK / EXPLICIT_USE_RESTRICTION` with exact subject/revision matching and sufficient evidence in transaction `0x2340d9a261c9aff0b481b4bb4d8fe404d038bbc900f220fa2a65f130dfdda430`. The local frontend is synchronized to that policy hash and passes its full gate suite; the correction has not yet been pushed or redeployed to Vercel.
 
 The secret-free manifest, storage compatibility policy, reset recovery procedures, and completed disposable rehearsal evidence are in `docs/DEPLOYMENT_RECOVERY.md`.
 
@@ -189,6 +189,6 @@ The secret-free manifest, storage compatibility policy, reset recovery procedure
 - `HF_MODEL` and `HF_DATASET` are explicitly locked as `UNSUPPORTED_V1`.
 - Private/authenticated repositories and caller-supplied evidence URLs are unsupported.
 - LicenseScope provides an operational policy decision, not legal advice.
-- The installed dual-shape web-response repair passed deployment finality, upgraded-source parity, preserved-state readback, and a successful live `BLOCK / EXACT` resolution. A future unsupported upstream response shape will still fail closed to `UNRESOLVED` until separately reviewed and repaired.
+- The installed complete-source repair passed upgrade finality, exact source parity, active-policy readback, preserved-state readback, and a correction-specific live `BLOCK / EXACT` evaluation. A future unsupported upstream response shape will fail closed to `UNRESOLVED` until separately reviewed and repaired.
 - Disposable deployed-code readback and upgrade redispatch are verified. Native Root locking was not independently isolated from the contract's earlier explicit authorization guard.
 - Availability and semantic quality still depend on public evidence and validator consensus; insufficient or custom evidence resolves safely to `UNRESOLVED`.

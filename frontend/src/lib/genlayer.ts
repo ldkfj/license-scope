@@ -4,9 +4,11 @@ import { recoverMessageAddress, type Hex } from 'viem';
 import type { ArtifactKind, AssessmentStatus, UseProfile } from './validation.ts';
 
 export {
+  assertAssessmentUnchanged,
   assertSameAssessmentIdentity,
   assertTerminalRecord,
   formatRegistryReadError,
+  getGenLayerReceiptStatus,
   parseAssessmentRecord,
   validateGenLayerReceipt,
 } from './validation.ts';
@@ -22,7 +24,7 @@ export const CONTRACT_ADDRESS = process.env.NEXT_PUBLIC_CONTRACT_ADDRESS || '';
 export const STUDIONET_RPC_URL = 'https://studio.genlayer.com/api';
 export const STUDIONET_CHAIN_ID = 61999; // 0xf22f
 export const POLICY_VERSION = 'LS-V1';
-export const POLICY_HASH = 'sha256:1105b19ea7786bbd5ace24445845997e914e726cd2f80ddf83d8a6f8f8769532';
+export const POLICY_HASH = 'sha256:696833070a2262ebcd178648b21957a883d62c2d7c0112a007d1143ec3720fbc';
 export const STUDIONET_EXPLORER_BASE = 'https://explorer-studio.genlayer.com/';
 const WALLET_DISCONNECTED_KEY = 'licensescope.walletDisconnected';
 const WALLET_SIGNED_ACCOUNT_KEY = 'licensescope.walletSignedAccount';

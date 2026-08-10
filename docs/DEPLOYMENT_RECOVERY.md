@@ -3,12 +3,12 @@
 ## Gate status
 
 - Classification: `UPGRADABLE`
-- Checkpoint: `PRE_DEPLOY` for the judge-requested complete-source correction
+- Checkpoint: `POST_DEPLOY_TEST` evidence collection for the judge-requested complete-source correction
 - Redeployment authorization: **CONSUMED** for transaction `0xd28ff503fa44f073ed4f741427a809fa6c1717bb1f05b64901828cb0b71705d5`
-- Current deployment: **PRIOR PUBLIC REVISION REMAINS INSTALLED**; judge-correction candidate is local only
+- Current deployment: **JUDGE-CORRECTION SOURCE INSTALLED IN PLACE**
 - Safe upgrade rehearsal: **COMPLETED** on disposable contract `0xF1FF7a9Faa9A9800237e945F97b69Ac837D30193`
 - Prior main-contract upgrade authorization: **CONSUMED** for transaction `0x002f06c175fc2ea35e4f8b99f2c2562105b952073d8460baed786c925ce3dbd6`
-- Judge-correction main-contract upgrade authorization: **NOT GRANTED**
+- Judge-correction main-contract upgrade authorization: **CONSUMED** for transaction `0x93187fa0858d8089a7708c38d81a2d78e2e6bdc30e366f2d14dff8abc78e54d1`
 
 The user selected one public wallet for both deployment and upgrade authority. No private key, seed phrase, token, credential, or wallet export belongs in this document.
 
@@ -22,10 +22,22 @@ The user selected one public wallet for both deployment and upgrade authority. N
 | Candidate policy manifest hash | `sha256:696833070a2262ebcd178648b21957a883d62c2d7c0112a007d1143ec3720fbc` |
 | Target contract | `0x8f1e48e52241E1B8b3320b953901ec7eeE481Ac7` |
 | Persistent storage layout change | None |
-| Main-contract authorization | Not granted |
-| Candidate installed | No |
+| Main-contract authorization | Consumed for `0x93187fa0858d8089a7708c38d81a2d78e2e6bdc30e366f2d14dff8abc78e54d1` |
+| Candidate installed | Yes, exact source verified on the main contract |
 
-The candidate removes all partial-source terminal evaluation: complete accepted source bodies are evaluated or the result fails closed to `UNRESOLVED`. A fresh exact-revision `PRE_DEPLOY` approval and separate user authorization are required before any main-contract upgrade.
+The installed correction removes all partial-source terminal evaluation: complete accepted source bodies are evaluated or the result fails closed to `UNRESOLVED`. Exact-source and preserved-state readbacks passed after the separately approved and authorized in-place upgrade. The authorization is consumed and permits no additional upgrade.
+
+## Judge-correction main-contract upgrade evidence
+
+- Transaction: `0x93187fa0858d8089a7708c38d81a2d78e2e6bdc30e366f2d14dff8abc78e54d1`
+- Sender: authorized upgrader `0x7885536194bbd6e1d0a6ab991ab215cfa9542339`
+- Recipient: main contract `0x8f1e48e52241E1B8b3320b953901ec7eeE481Ac7`
+- Receipt: `FINALIZED / MAJORITY_AGREE`; three `AGREE`, two quorum-cancelled `IDLE`; both leader receipts `SUCCESS` with no error or stderr.
+- Live source: 50,331 bytes; SHA-256 `c3a51d4cb13f63433a3aaae4f3600deb4292e8cffad1a65d6261378b8984bbff`.
+- Active `COMMERCIAL_INFERENCE` policy hash: `sha256:696833070a2262ebcd178648b21957a883d62c2d7c0112a007d1143ec3720fbc`.
+- Preserved state: assessment count `1`; assessment `#1` remained `BLOCK / EXPLICIT_USE_RESTRICTION`, subject and revision `EXACT`, retry count `2`, with its historical policy hash unchanged as expected for an existing immutable record.
+
+Correction-specific assessment `#2` exercised the newly installed full-source path. Request `0x34a4aac8b2b878ab9a442ffd76b70712a3b5e973954a3876deb289f292850809` created the immutable `COMMERCIAL_REDISTRIBUTION` record under the new policy hash. The first resolve `0x06942fe5358d40520fefcf9d0431c5a352ee670b2547dc8336eebe6502a4e075` ended `UNDETERMINED / MAJORITY_DISAGREE` and authoritative readback proved no mutation. The resumed second resolve `0x2340d9a261c9aff0b481b4bb4d8fe404d038bbc900f220fa2a65f130dfdda430` reached `FINALIZED / MAJORITY_AGREE`; both leader receipts succeeded, and readback returned `BLOCK / EXPLICIT_USE_RESTRICTION`, subject and revision `EXACT`, sufficient evidence, `CC-BY-NC-4.0`, retry count `0`, and the current policy hash.
 
 ## Intended deployment
 

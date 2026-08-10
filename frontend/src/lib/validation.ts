@@ -174,6 +174,20 @@ function parseStringArray(value: unknown, field: string): string[] {
   return parsed;
 }
 
+export function getGenLayerReceiptStatus(receipt: unknown): string {
+  const rec = requireRecord(receipt, 'Transaction receipt');
+
+  return requireConsistentRepresentations(
+    [
+      ...collectNamedRepresentation(rec, ['statusName', 'status_name'], 'Transaction receipt status'),
+      ...(typeof rec.status === 'string'
+        ? [requireString(rec.status, 'Transaction receipt status (status)')]
+        : collectNumericRepresentation(rec, ['status'], TRANSACTION_STATUS_BY_CODE, 'Transaction receipt status')),
+    ],
+    'Transaction receipt status',
+  );
+}
+
 export function validateGenLayerReceipt(
   receipt: unknown,
 ): { status: string; executionResult: string; consensusResult: string } {
@@ -183,15 +197,7 @@ export function validateGenLayerReceipt(
     throw new Error(`Transaction receipt error: ${String(rec.error ?? 'MISSING')}.`);
   }
 
-  const statusName = requireConsistentRepresentations(
-    [
-      ...collectNamedRepresentation(rec, ['statusName', 'status_name'], 'Transaction receipt status'),
-      ...(typeof rec.status === 'string'
-        ? [requireString(rec.status, 'Transaction receipt status (status)')]
-        : collectNumericRepresentation(rec, ['status'], TRANSACTION_STATUS_BY_CODE, 'Transaction receipt status')),
-    ],
-    'Transaction receipt status',
-  );
+  const statusName = getGenLayerReceiptStatus(receipt);
   if (statusName !== 'FINALIZED') {
     throw new Error(`Transaction receipt status must be FINALIZED; received ${statusName}.`);
   }
@@ -372,6 +378,31 @@ export function assertSameAssessmentIdentity(
   for (const field of immutableFields) {
     if (before[field] !== after[field]) {
       throw new Error(`Assessment readback changed immutable field ${field}.`);
+    }
+  }
+}
+
+export function assertAssessmentUnchanged(before: AssessmentRecord, after: AssessmentRecord): void {
+  assertSameAssessmentIdentity(before, after);
+  const scalarFields: (keyof AssessmentRecord)[] = [
+    'status',
+    'status_name',
+    'verdict',
+    'reason_code',
+    'retry_count',
+    'subject_match',
+    'revision_match',
+    'evidence_sufficient',
+    'explanation',
+  ];
+  for (const field of scalarFields) {
+    if (before[field] !== after[field]) {
+      throw new Error(`Terminal failure readback changed assessment field ${field}.`);
+    }
+  }
+  for (const field of ['license_ids', 'obligations', 'evidence_references'] as const) {
+    if (JSON.stringify(before[field]) !== JSON.stringify(after[field])) {
+      throw new Error(`Terminal failure readback changed assessment field ${field}.`);
     }
   }
 }
