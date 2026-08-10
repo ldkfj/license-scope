@@ -322,6 +322,7 @@ def test_reproducible_policy_manifest_hash():
         },
         "normalization_behavior": {
             "strict_post_consensus_invariant_enforcement": True,
+            "terminal_verdict_requires_full_source_evaluation": True,
         },
         "bounds": {
             "max_evidence_ref_len": 300,
@@ -346,7 +347,7 @@ def test_reproducible_policy_manifest_hash():
     contract = Contract(DEPLOYER)
     profile_info = contract.get_policy_profile("COMMERCIAL_INFERENCE")
     assert profile_info["policy_hash"] == expected_hash
-    assert expected_hash == "sha256:1105b19ea7786bbd5ace24445845997e914e726cd2f80ddf83d8a6f8f8769532"
+    assert expected_hash == "sha256:696833070a2262ebcd178648b21957a883d62c2d7c0112a007d1143ec3720fbc"
     assert CANONICAL_POLICY_MANIFEST == expected_manifest
 
 
@@ -468,10 +469,116 @@ def _resolve_with_sources(monkeypatch, repo_name, primary_license, readme, llm_r
         return MockWebResponse(404, b"Not Found")
 
     monkeypatch.setattr(gl.nondet.web, "request", mock_web_get)
-    monkeypatch.setattr(gl.nondet, "exec_prompt", lambda *args, **kwargs: llm_result)
+    monkeypatch.setattr(
+        gl.nondet,
+        "exec_prompt",
+        llm_result if callable(llm_result) else lambda *args, **kwargs: llm_result,
+    )
     set_sender(RESOLVER)
     contract.resolve_assessment(aid)
     return contract.get_assessment(aid)
+
+
+def test_restrictive_clause_after_legacy_cutoff_is_fully_evaluated(monkeypatch):
+    restrictive_clause = "ADDITIONAL TERMS: NO COMMERCIAL USE."
+    source = (
+        "MIT License\nPermission is hereby granted, free of charge.\n"
+        + ("Permissive preface. " * 240)
+        + restrictive_clause
+    ).encode("utf-8")
+    assert len(source) > 4000
+
+    def evaluate_full_source(prompt, response_format="json"):
+        assert restrictive_clause in prompt
+        return {
+            "verdict": "BLOCK",
+            "reason_code": "EXPLICIT_USE_RESTRICTION",
+            "license_ids": ["MIT"],
+            "obligations": ["NO_COMMERCIAL_USE"],
+            "explanation": "The complete source adds a commercial-use restriction.",
+        }
+
+    rec = _resolve_with_sources(
+        monkeypatch,
+        "late-restriction",
+        source,
+        b"",
+        evaluate_full_source,
+    )
+
+    assert rec["status"] == 4
+    assert rec["verdict"] == "BLOCK"
+    assert rec["reason_code"] == "EXPLICIT_USE_RESTRICTION"
+    assert rec["evidence_sufficient"] is True
+
+
+def test_source_set_exceeding_prompt_bound_fails_closed_without_partial_evaluation(monkeypatch):
+    source = b"MIT License\nPermission is hereby granted.\n" + (b"a" * 20000)
+
+    def reject_prompt_call(*args, **kwargs):
+        raise AssertionError("oversized full source must not be partially evaluated")
+
+    rec = _resolve_with_sources(
+        monkeypatch,
+        "oversized-prompt",
+        source,
+        b"",
+        reject_prompt_call,
+    )
+
+    assert rec["status"] == 5
+    assert rec["verdict"] == "UNRESOLVED"
+    assert rec["reason_code"] == "INSUFFICIENT_EVIDENCE"
+    assert rec["evidence_sufficient"] is False
+
+
+@pytest.mark.parametrize(
+    ("readme_status", "readme_case", "expected_reason"),
+    [
+        (200, "oversized", "MALFORMED_SOURCE"),
+        (500, "server_error", "SOURCE_MISSING"),
+        (200, "request_error", "SOURCE_MISSING"),
+    ],
+)
+def test_incomplete_decision_relevant_source_fails_closed_even_with_valid_license(
+    monkeypatch, readme_status, readme_case, expected_reason
+):
+    contract = Contract(DEPLOYER)
+    aid = contract.request_assessment(
+        "GITHUB_REPO", "test-org", "malformed-source", VALID_SHA, "COMMERCIAL_INFERENCE"
+    )
+
+    def mock_web_get(url, method="GET"):
+        if "/commits/" in url:
+            return MockWebResponse(200, json.dumps({
+                "sha": VALID_SHA,
+                "html_url": f"https://github.com/test-org/malformed-source/commit/{VALID_SHA}",
+            }).encode("utf-8"))
+        if url.endswith("/LICENSE"):
+            return MockWebResponse(200, b"MIT License\nPermission is hereby granted.")
+        if url.endswith("/README.md"):
+            if readme_case == "request_error":
+                raise TimeoutError("Request timeout")
+            readme_body = b"a" * 100001 if readme_case == "oversized" else b"Internal Server Error"
+            return MockWebResponse(readme_status, readme_body)
+        return MockWebResponse(404, b"Not Found")
+
+    monkeypatch.setattr(gl.nondet.web, "request", mock_web_get)
+    monkeypatch.setattr(
+        gl.nondet,
+        "exec_prompt",
+        lambda *args, **kwargs: (_ for _ in ()).throw(
+            AssertionError("malformed source must prevent evaluation")
+        ),
+    )
+    set_sender(RESOLVER)
+    contract.resolve_assessment(aid)
+    rec = contract.get_assessment(aid)
+
+    assert rec["status"] == 5
+    assert rec["verdict"] == "UNRESOLVED"
+    assert rec["reason_code"] == expected_reason
+    assert rec["evidence_sufficient"] is False
 
 
 def test_gpl_source_cannot_be_relabelled_mit_allow(monkeypatch):

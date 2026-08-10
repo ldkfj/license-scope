@@ -154,6 +154,7 @@ CANONICAL_POLICY_MANIFEST = {
     },
     "normalization_behavior": {
         "strict_post_consensus_invariant_enforcement": True,
+        "terminal_verdict_requires_full_source_evaluation": True,
     },
     "bounds": {
         "max_identifier_len": 100,
@@ -172,7 +173,7 @@ CANONICAL_POLICY_MANIFEST = {
     },
 }
 
-POLICY_HASH = "sha256:1105b19ea7786bbd5ace24445845997e914e726cd2f80ddf83d8a6f8f8769532"
+POLICY_HASH = "sha256:696833070a2262ebcd178648b21957a883d62c2d7c0112a007d1143ec3720fbc"
 
 MAX_IDENTIFIER_LEN = 100
 MAX_REQUESTS = 5
@@ -274,14 +275,6 @@ def _canonical_string_set(value) -> list[str]:
     if type(value) is not list or any(type(item) is not str for item in value):
         return []
     return sorted(set(value))
-
-
-def _truncate_utf8_bytes(text: str, max_bytes: int) -> str:
-    encoded = text.encode("utf-8")
-    if len(encoded) <= max_bytes:
-        return text
-    truncated = encoded[:max_bytes]
-    return truncated.decode("utf-8", errors="ignore")
 
 
 def _safe_decode_utf8_response_body(resp) -> str | None:
@@ -822,16 +815,55 @@ def _fetch_and_evaluate_evidence(
             total_requests += 1
             resp = gl.nondet.web.request(l_url, method="GET")
             status_code = _normalize_web_response_status(resp)
-            if status_code == 200:
-                txt = _safe_decode_utf8_response_body(resp)
-                if txt and txt.strip():
-                    evidence_refs.append(l_url[:MAX_EVIDENCE_REF_LEN])
-                    source_texts.append(f"--- SOURCE FILE ({l_url}) ---\n" + txt[:4000])
+            if status_code == 404:
+                continue
+            if status_code is None or status_code != 200:
+                raw_res = {
+                    "status_code": 5,
+                    "reason_code": "MALFORMED_SOURCE" if status_code is None else "SOURCE_MISSING",
+                    "license_ids": [],
+                    "obligations": [],
+                    "subject_match": "EXACT",
+                    "revision_match": "EXACT",
+                    "evidence_sufficient": False,
+                    "evidence_references": evidence_refs[:MAX_JSON_LIST_LEN],
+                    "explanation": "A derived source could not be verified completely.",
+                }
+                return _normalize_and_validate_decision(raw_res, kind, ns, name, rev, profile)
 
-                    if is_authoritative_license:
-                        detected_licenses.update(_detect_authoritative_licenses(txt))
+            txt = _safe_decode_utf8_response_body(resp)
+            if txt is None:
+                raw_res = {
+                    "status_code": 5,
+                    "reason_code": "MALFORMED_SOURCE",
+                    "license_ids": [],
+                    "obligations": [],
+                    "subject_match": "EXACT",
+                    "revision_match": "EXACT",
+                    "evidence_sufficient": False,
+                    "evidence_references": evidence_refs[:MAX_JSON_LIST_LEN],
+                    "explanation": "Source body malformed or exceeded the full-evaluation byte bound.",
+                }
+                return _normalize_and_validate_decision(raw_res, kind, ns, name, rev, profile)
+            if txt and txt.strip():
+                evidence_refs.append(l_url[:MAX_EVIDENCE_REF_LEN])
+                source_texts.append(f"--- SOURCE FILE ({l_url}) ---\n" + txt)
+
+                if is_authoritative_license:
+                    detected_licenses.update(_detect_authoritative_licenses(txt))
         except Exception:
-            pass
+            raw_res = {
+                "status_code": 5,
+                "reason_code": "SOURCE_MISSING",
+                "license_ids": [],
+                "obligations": [],
+                "subject_match": "EXACT",
+                "revision_match": "EXACT",
+                "evidence_sufficient": False,
+                "evidence_references": evidence_refs[:MAX_JSON_LIST_LEN],
+                "explanation": "A derived source request failed before complete evaluation.",
+            }
+            return _normalize_and_validate_decision(raw_res, kind, ns, name, rev, profile)
 
     if not evidence_refs or not source_texts:
         raw_res = {
@@ -886,9 +918,22 @@ Respond ONLY with a valid JSON object matching this exact structure (DO NOT incl
 }}
 """
 
-    prompt = _truncate_utf8_bytes(raw_prompt, MAX_PROMPT_BYTES)
+    # Never create a terminal verdict from a prefix of the accepted source set.
+    if len(raw_prompt.encode("utf-8")) > MAX_PROMPT_BYTES:
+        raw_res = {
+            "status_code": 5,
+            "reason_code": "INSUFFICIENT_EVIDENCE",
+            "license_ids": sorted(detected_licenses),
+            "obligations": [],
+            "subject_match": "EXACT",
+            "revision_match": "EXACT",
+            "evidence_sufficient": False,
+            "evidence_references": evidence_refs[:MAX_JSON_LIST_LEN],
+            "explanation": "Complete source set exceeds the full-evaluation prompt bound; no partial evaluation was performed.",
+        }
+        return _normalize_and_validate_decision(raw_res, kind, ns, name, rev, profile)
 
-    llm_result = gl.nondet.exec_prompt(prompt, response_format="json")
+    llm_result = gl.nondet.exec_prompt(raw_prompt, response_format="json")
 
     parsed = llm_result if isinstance(llm_result, dict) else _safe_json_loads(str(llm_result))
 
