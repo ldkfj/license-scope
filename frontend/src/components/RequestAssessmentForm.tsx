@@ -66,14 +66,7 @@ export const RequestAssessmentForm: React.FC<RequestAssessmentFormProps> = ({
     let receiptStatus = getGenLayerReceiptStatus(receipt);
     const unsuccessfulTerminalStatuses = new Set(['UNDETERMINED', 'CANCELED', 'VALIDATORS_TIMEOUT', 'LEADER_TIMEOUT']);
     if (unsuccessfulTerminalStatuses.has(receiptStatus)) {
-      validateTransactionBinding(receipt, pending);
-      const storage = browserStorage();
-      if (!storage || !coordinator.complete(pending.hash, storage)) {
-        throw new Error('Verified terminal failure could not be cleared from the shared coordinator.');
-      }
-      setErrorMsg(`Transaction ended ${receiptStatus}; contract state was not created by this transaction.`);
-      setStatusMsg(null);
-      return;
+      throw new Error(`Transaction ended ${receiptStatus}; the persisted hash remains locked because successful execution and readback were not proven.`);
     }
 
     if (receiptStatus !== 'FINALIZED') {
@@ -99,14 +92,7 @@ export const RequestAssessmentForm: React.FC<RequestAssessmentFormProps> = ({
     } catch (error: unknown) {
       const failure = error instanceof Error ? error.message : String(error);
       if (receiptStatus === 'FINALIZED' || unsuccessfulTerminalStatuses.has(receiptStatus)) {
-        validateTransactionBinding(receipt, pending);
-        const storage = browserStorage();
-        if (!storage || !coordinator.complete(pending.hash, storage)) {
-          throw new Error('Verified terminal failure could not be cleared from the shared coordinator.');
-        }
-        setErrorMsg(`Request transaction failed: ${failure}`);
-        setStatusMsg(null);
-        return;
+        throw new Error(`Request transaction could not be proven successful; the persisted hash remains locked. ${failure}`);
       }
       throw error;
     }

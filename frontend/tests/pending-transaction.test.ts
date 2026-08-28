@@ -4,6 +4,7 @@ import assert from 'node:assert/strict';
 import {
   clearPendingTransaction,
   loadPendingTransaction,
+  parsePendingTransaction,
   savePendingTransaction,
   type PendingTransaction,
 } from '../src/lib/pendingTransaction.ts';
@@ -60,4 +61,51 @@ test('rejects malformed persisted data instead of silently unlocking writes', ()
     hash: 'not-a-hash',
   }));
   assert.throws(() => loadPendingTransaction(storage, CONTRACT), /malformed/i);
+});
+
+test('rejects persisted assessment retry counts outside the shared 0..2 range', () => {
+  const value = {
+    ...pending(),
+    action: 'retry',
+    payload: {
+      assessmentId: 2,
+      canonicalKey: pending().payload.canonicalKey,
+      retryCount: 3,
+      identity: {
+        artifactKind: 'GITHUB_REPO',
+        namespace: 'snap-research',
+        name: 'CoSearch',
+        revision: '763bf8c4d7caa363ad845d39ddfd53b81ae377bd',
+        useProfile: 'COMMERCIAL_INFERENCE',
+        requester: `0x${'2'.repeat(40)}`,
+        policyVersion: 'LS-V1',
+        policyHash: 'sha256:696833070a2262ebcd178648b21957a883d62c2d7c0112a007d1143ec3720fbc',
+      },
+      snapshot: {
+        assessment_id: 2,
+        canonical_key: pending().payload.canonicalKey,
+        artifact_kind: 'GITHUB_REPO',
+        namespace: 'snap-research',
+        name: 'CoSearch',
+        revision: '763bf8c4d7caa363ad845d39ddfd53b81ae377bd',
+        use_profile: 'COMMERCIAL_INFERENCE',
+        requester: `0x${'2'.repeat(40)}`,
+        status: 5,
+        status_name: 'UNRESOLVED',
+        verdict: 'UNRESOLVED',
+        reason_code: 'SOURCE_MISSING',
+        license_ids: [],
+        obligations: [],
+        subject_match: 'UNCLEAR',
+        revision_match: 'UNCLEAR',
+        evidence_sufficient: false,
+        evidence_references: [],
+        explanation: 'Source missing.',
+        policy_version: 'LS-V1',
+        policy_hash: 'sha256:696833070a2262ebcd178648b21957a883d62c2d7c0112a007d1143ec3720fbc',
+        retry_count: 3,
+      },
+    },
+  };
+  assert.throws(() => parsePendingTransaction(value, CONTRACT), /Pending assessment payload is invalid/i);
 });

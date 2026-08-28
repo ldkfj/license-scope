@@ -7,7 +7,6 @@ export {
   assertAssessmentUnchanged,
   assertPendingRecord,
   assertSameAssessmentIdentity,
-  assertTerminalFailureState,
   assertTerminalRecord,
   formatRegistryReadError,
   getGenLayerReceiptStatus,

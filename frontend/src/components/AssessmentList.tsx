@@ -15,7 +15,6 @@ import {
   validateTransactionBinding,
   reconcileResolveRecord,
   reconcileRetryRecord,
-  assertTerminalFailureState,
   MatchTriState,
 } from '@/lib/genlayer';
 import { waitForFinalizedTransaction } from '@/lib/finality';
@@ -53,31 +52,6 @@ export const AssessmentList: React.FC<AssessmentListProps> = ({
   const pendingTx = coordinatorState.phase === 'pending' ? coordinatorState.transaction : null;
   const coordinatorError = coordinatorState.phase === 'blocked' ? coordinatorState.error : null;
 
-  const clearVerifiedTerminalFailure = async (
-    pending: PendingAssessmentTransaction,
-    receipt: unknown,
-    client: ReturnType<typeof getClient>,
-    receiptStatus: string,
-    failure: string,
-  ) => {
-    validateTransactionBinding(receipt, pending);
-    const rawReadback = await client.readContract({
-      address: CONTRACT_ADDRESS as `0x${string}`,
-      functionName: 'get_assessment',
-      args: [BigInt(pending.payload.assessmentId)],
-    });
-    const rec = parseAssessmentRecord(rawReadback);
-    assertTerminalFailureState(pending, rec);
-
-    const storage = browserStorage();
-    if (!storage || !coordinator.complete(pending.hash, storage)) {
-      throw new Error('Verified terminal failure could not be cleared from the shared coordinator.');
-    }
-    setStatusMsg(`${pending.action} ended ${receiptStatus} with no state change. The assessment is safe to retry.`);
-    setErrorMsg(failure);
-    await onRefresh();
-  };
-
   const reconcileAssessment = async (pending: PendingAssessmentTransaction, record: AssessmentRecord) => {
     const accountAddr = await connectWalletAndVerifyChain();
     if (accountAddr.toLowerCase() !== pending.account.toLowerCase()) {
@@ -95,8 +69,7 @@ export const AssessmentList: React.FC<AssessmentListProps> = ({
     let receiptStatus = getGenLayerReceiptStatus(receipt);
     const unsuccessfulTerminalStatuses = new Set(['UNDETERMINED', 'CANCELED', 'VALIDATORS_TIMEOUT', 'LEADER_TIMEOUT']);
     if (unsuccessfulTerminalStatuses.has(receiptStatus)) {
-      await clearVerifiedTerminalFailure(pending, receipt, client, receiptStatus, `Transaction ended ${receiptStatus}; contract state was unchanged.`);
-      return;
+      throw new Error(`Transaction ended ${receiptStatus}; the persisted hash remains locked because successful execution and readback were not proven.`);
     }
 
     if (receiptStatus !== 'FINALIZED') {
@@ -125,8 +98,7 @@ export const AssessmentList: React.FC<AssessmentListProps> = ({
     } catch (error: unknown) {
       const failure = error instanceof Error ? error.message : String(error);
       if (receiptStatus === 'FINALIZED' || unsuccessfulTerminalStatuses.has(receiptStatus)) {
-        await clearVerifiedTerminalFailure(pending, receipt, client, receiptStatus, failure);
-        return;
+        throw new Error(`Transaction could not be proven successful; the persisted hash remains locked. ${failure}`);
       }
       throw error;
     }
@@ -220,7 +192,22 @@ export const AssessmentList: React.FC<AssessmentListProps> = ({
         account: accountAddr,
         createdAt: pendingTransactionTimestamp(),
         action: 'resolve',
-        payload: { assessmentId: record.assessment_id, canonicalKey: record.canonical_key, retryCount: record.retry_count },
+        payload: {
+          assessmentId: record.assessment_id,
+          canonicalKey: record.canonical_key,
+          retryCount: record.retry_count,
+          identity: {
+            artifactKind: record.artifact_kind,
+            namespace: record.namespace,
+            name: record.name,
+            revision: record.revision,
+            useProfile: record.use_profile,
+            requester: record.requester,
+            policyVersion: record.policy_version,
+            policyHash: record.policy_hash,
+          },
+          snapshot: record,
+        },
       };
       setActiveTxHash(hashStr);
       coordinator.promote(coordinatorToken, pending, storage);
@@ -285,7 +272,22 @@ export const AssessmentList: React.FC<AssessmentListProps> = ({
         account: accountAddr,
         createdAt: pendingTransactionTimestamp(),
         action: 'retry',
-        payload: { assessmentId: record.assessment_id, canonicalKey: record.canonical_key, retryCount: record.retry_count },
+        payload: {
+          assessmentId: record.assessment_id,
+          canonicalKey: record.canonical_key,
+          retryCount: record.retry_count,
+          identity: {
+            artifactKind: record.artifact_kind,
+            namespace: record.namespace,
+            name: record.name,
+            revision: record.revision,
+            useProfile: record.use_profile,
+            requester: record.requester,
+            policyVersion: record.policy_version,
+            policyHash: record.policy_hash,
+          },
+          snapshot: record,
+        },
       };
       setActiveTxHash(hashStr);
       coordinator.promote(coordinatorToken, pending, storage);

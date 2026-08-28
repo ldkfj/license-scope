@@ -3,7 +3,6 @@ import assert from 'node:assert/strict';
 import { abi } from 'genlayer-js';
 
 import {
-  assertTerminalFailureState,
   extractReturnedAssessmentId,
   parseAssessmentRecord,
   reconcileRequestRecord,
@@ -67,6 +66,17 @@ function makePendingResolve(retryCount = 0): PendingAssessmentTransaction {
       assessmentId: 2,
       canonicalKey: makePendingRequest().payload.canonicalKey,
       retryCount,
+      identity: {
+        artifactKind: 'GITHUB_REPO',
+        namespace: 'snap-research',
+        name: 'CoSearch',
+        revision: '763bf8c4d7caa363ad845d39ddfd53b81ae377bd',
+        useProfile: 'COMMERCIAL_INFERENCE',
+        requester: ACCOUNT,
+        policyVersion: 'LS-V1',
+        policyHash: POLICY_HASH,
+      },
+      snapshot: makeRecord({ status: 1, status_name: 'PENDING', verdict: 'PENDING', retry_count: retryCount }),
     },
   };
 }
@@ -84,6 +94,17 @@ function makePendingRetry(retryCount = 0): PendingAssessmentTransaction {
       assessmentId: 2,
       canonicalKey: makePendingRequest().payload.canonicalKey,
       retryCount,
+      identity: {
+        artifactKind: 'GITHUB_REPO',
+        namespace: 'snap-research',
+        name: 'CoSearch',
+        revision: '763bf8c4d7caa363ad845d39ddfd53b81ae377bd',
+        useProfile: 'COMMERCIAL_INFERENCE',
+        requester: ACCOUNT,
+        policyVersion: 'LS-V1',
+        policyHash: POLICY_HASH,
+      },
+      snapshot: makeUnresolvedRecord({ retry_count: retryCount }),
     },
   };
 }
@@ -322,15 +343,12 @@ test('Request: failed duplicate request receipt is rejected and not converted to
     () => validateGenLayerReceipt(duplicateReceipt),
     /leader execution result rejected: ERROR/i,
   );
-  // Transaction binding still binds the historical failed envelope
-  const binding = validateTransactionBinding(duplicateReceipt, pending);
-  assert.equal(binding.returnedAssessmentId, null);
   // An existing record on chain cannot be used to treat a failed request as successful
   const existingRecord = makeBlockRecord();
   assert.throws(
     () => {
       validateGenLayerReceipt(duplicateReceipt);
-      reconcileRequestRecord(pending, existingRecord, binding.returnedAssessmentId);
+      reconcileRequestRecord(pending, existingRecord, null);
     },
     /leader execution result rejected: ERROR/i,
   );
@@ -461,7 +479,7 @@ test('Retry: retry_count exceeding max bound of 2 is rejected', () => {
     verdict: 'PENDING',
     retry_count: 3,
   });
-  assert.throws(() => reconcileRetryRecord(pending, record), /exceeds maximum limit of 2/i);
+  assert.throws(() => reconcileRetryRecord(pending, record), /out of valid bounds \[0\.\.2\]/i);
 });
 
 // ---------------------------------------------------------------------------
@@ -560,6 +578,63 @@ test('Binding: contradictory leader receipts reject returned ID', () => {
   assert.throws(() => validateTransactionBinding(tx, pending), /Leader receipt return values disagree/i);
 });
 
+test('Binding: one malformed present calldata representation rejects the whole receipt', () => {
+  const pending = makePendingRequest();
+  const tx = makeTxData(
+    'request_assessment',
+    ['GITHUB_REPO', 'snap-research', 'CoSearch', '763bf8c4d7caa363ad845d39ddfd53b81ae377bd', 'COMMERCIAL_INFERENCE'],
+    REQUEST_HASH,
+    ACCOUNT,
+    CONTRACT,
+    2,
+  );
+  tx.consensus_data.leader_receipt[0].calldata = { raw: [255] };
+  assert.throws(() => validateTransactionBinding(tx, pending), /Leader receipt calldata\.raw is present but malformed/i);
+});
+
+test('Binding: readable and raw returned IDs must agree', () => {
+  const pending = makePendingRequest();
+  const tx = makeTxData(
+    'request_assessment',
+    ['GITHUB_REPO', 'snap-research', 'CoSearch', '763bf8c4d7caa363ad845d39ddfd53b81ae377bd', 'COMMERCIAL_INFERENCE'],
+    REQUEST_HASH,
+    ACCOUNT,
+    CONTRACT,
+    2,
+  );
+  const encodedId = abi.calldata.encode(3);
+  const raw = new Uint8Array(1 + encodedId.length);
+  raw[0] = 0;
+  raw.set(encodedId, 1);
+  tx.consensus_data.leader_receipt[0].result = {
+    status: 'return',
+    payload: { readable: '2', raw: bytesToBase64(raw) },
+  } as unknown as typeof tx.consensus_data.leader_receipt[0]['result'];
+  assert.throws(() => validateTransactionBinding(tx, pending), /Leader receipt return values disagree/i);
+});
+
+test('Resolve and Retry reject changed immutable identity or policy binding', () => {
+  assert.throws(
+    () => reconcileResolveRecord(makePendingResolve(), makeAllowRecord({ namespace: 'other-owner' })),
+    /changed immutable field namespace/i,
+  );
+  assert.throws(
+    () => reconcileRetryRecord(makePendingRetry(), makeRecord({ requester: '0x9999999999999999999999999999999999999999', retry_count: 1 })),
+    /changed immutable field requester/i,
+  );
+  assert.throws(
+    () => reconcileRetryRecord(makePendingRetry(), makeRecord({ policy_hash: 'sha256:other', retry_count: 1 })),
+    /changed immutable field policy_hash/i,
+  );
+});
+
+test('Request progression rejects retry_count outside the shared 0..2 range', () => {
+  assert.throws(
+    () => reconcileRequestRecord(makePendingRequest(), makeBlockRecord({ retry_count: 99 }), 2),
+    /out of valid bounds \[0\.\.2\]/i,
+  );
+});
+
 // ---------------------------------------------------------------------------
 // 5. Coordinator Zero-Write & Lock Invariance Tests
 // ---------------------------------------------------------------------------
@@ -581,24 +656,6 @@ test('Coordinator: completing a pending transaction clears only the exact matchi
   // Completing the exact matching hash transitions to idle
   assert.equal(coordinator.complete(REQUEST_HASH, storage), true);
   assert.equal(coordinator.getSnapshot().phase, 'idle');
-});
-
-test('Coordinator: terminal failure verification requires pre-transaction state matching', () => {
-  const pendingResolve = makePendingResolve(0);
-  const pendingRecordAtRound0 = makeRecord({ status: 1, status_name: 'PENDING', retry_count: 0 });
-  assert.doesNotThrow(() => assertTerminalFailureState(pendingResolve, pendingRecordAtRound0));
-
-  const mutatedRecord = makeAllowRecord({ retry_count: 0 });
-  assert.throws(() => assertTerminalFailureState(pendingResolve, mutatedRecord), /Resolve terminal failure verification failed/i);
-});
-
-test('Coordinator: retry terminal failure requires pre-transaction UNRESOLVED state', () => {
-  const pendingRetry = makePendingRetry(0);
-  const unresolvedRecordAtRound0 = makeUnresolvedRecord({ retry_count: 0 });
-  assert.doesNotThrow(() => assertTerminalFailureState(pendingRetry, unresolvedRecordAtRound0));
-
-  const mutatedRecord = makeRecord({ status: 1, status_name: 'PENDING', retry_count: 1 });
-  assert.throws(() => assertTerminalFailureState(pendingRetry, mutatedRecord), /Retry terminal failure verification failed/i);
 });
 
 test('Coordinator: resume flow performs zero writeContract calls', async () => {
@@ -754,7 +811,7 @@ test('Browser compatibility: base64 decoder fails closed on malformed base64 or 
         ],
       },
     };
-    assert.throws(() => validateTransactionBinding(invalidTx, pending), /Transaction calldata is missing or unparseable/i);
+    assert.throws(() => validateTransactionBinding(invalidTx, pending), /present but malformed or unparseable/i);
   } finally {
     globalRef.Buffer = originalBuffer;
   }

@@ -1,4 +1,4 @@
-import type { ArtifactKind, UseProfile } from './validation';
+import type { ArtifactKind, AssessmentRecord, UseProfile } from './validation';
 
 const STORAGE_PREFIX = 'licensescope.pending-transaction.v1';
 const ADDRESS_RE = /^0x[0-9a-fA-F]{40}$/;
@@ -38,6 +38,17 @@ export interface PendingAssessmentTransaction extends PendingBase {
     assessmentId: number;
     canonicalKey: string;
     retryCount: number;
+    identity: {
+      artifactKind: ArtifactKind;
+      namespace: string;
+      name: string;
+      revision: string;
+      useProfile: UseProfile;
+      requester: string;
+      policyVersion: string;
+      policyHash: string;
+    };
+    snapshot: AssessmentRecord;
   };
 }
 
@@ -60,6 +71,36 @@ function isUseProfile(value: unknown): value is UseProfile {
     || value === 'COMMERCIAL_INFERENCE'
     || value === 'COMMERCIAL_REDISTRIBUTION'
     || value === 'COMMERCIAL_MODEL_TRAINING';
+}
+
+function isStringArray(value: unknown): boolean {
+  return Array.isArray(value) && value.every((item) => typeof item === 'string');
+}
+
+function isAssessmentSnapshot(value: unknown): value is AssessmentRecord {
+  if (!isObject(value)) return false;
+  return typeof value.assessment_id === 'number' && Number.isSafeInteger(value.assessment_id) && value.assessment_id >= 1
+    && typeof value.canonical_key === 'string' && value.canonical_key.length > 0
+    && isArtifactKind(value.artifact_kind)
+    && typeof value.namespace === 'string' && value.namespace.length > 0
+    && typeof value.name === 'string' && value.name.length > 0
+    && typeof value.revision === 'string' && SHA_RE.test(value.revision)
+    && isUseProfile(value.use_profile)
+    && typeof value.requester === 'string' && ADDRESS_RE.test(value.requester)
+    && typeof value.status === 'number' && Number.isSafeInteger(value.status) && value.status >= 1 && value.status <= 5
+    && typeof value.status_name === 'string'
+    && typeof value.verdict === 'string'
+    && typeof value.reason_code === 'string'
+    && isStringArray(value.license_ids)
+    && isStringArray(value.obligations)
+    && typeof value.subject_match === 'string'
+    && typeof value.revision_match === 'string'
+    && typeof value.evidence_sufficient === 'boolean'
+    && isStringArray(value.evidence_references)
+    && typeof value.explanation === 'string'
+    && typeof value.policy_version === 'string' && value.policy_version.length > 0
+    && typeof value.policy_hash === 'string' && value.policy_hash.length > 0
+    && typeof value.retry_count === 'number' && Number.isSafeInteger(value.retry_count) && value.retry_count >= 0 && value.retry_count <= 2;
 }
 
 export function parsePendingTransaction(value: unknown, expectedContract: string): PendingTransaction {
@@ -92,9 +133,26 @@ export function parsePendingTransaction(value: unknown, expectedContract: string
 
   if (value.action === 'resolve' || value.action === 'retry') {
     const payload = value.payload;
+    const identity = payload.identity;
+    const snapshot = payload.snapshot;
     if (typeof payload.assessmentId !== 'number' || !Number.isSafeInteger(payload.assessmentId) || payload.assessmentId < 1
-        || typeof payload.retryCount !== 'number' || !Number.isSafeInteger(payload.retryCount) || payload.retryCount < 0
-        || typeof payload.canonicalKey !== 'string' || payload.canonicalKey.length === 0) {
+        || typeof payload.retryCount !== 'number' || !Number.isSafeInteger(payload.retryCount) || payload.retryCount < 0 || payload.retryCount > 2
+        || typeof payload.canonicalKey !== 'string' || payload.canonicalKey.length === 0
+        || !isObject(identity)
+        || !isArtifactKind(identity.artifactKind)
+        || typeof identity.namespace !== 'string' || identity.namespace.length === 0
+        || typeof identity.name !== 'string' || identity.name.length === 0
+        || typeof identity.revision !== 'string' || !SHA_RE.test(identity.revision)
+        || !isUseProfile(identity.useProfile)
+        || typeof identity.requester !== 'string' || !ADDRESS_RE.test(identity.requester)
+        || typeof identity.policyVersion !== 'string' || identity.policyVersion.length === 0
+        || typeof identity.policyHash !== 'string' || identity.policyHash.length === 0
+        || !isAssessmentSnapshot(snapshot)
+        || snapshot.assessment_id !== payload.assessmentId
+        || snapshot.canonical_key !== payload.canonicalKey
+        || snapshot.retry_count !== payload.retryCount
+        || (value.action === 'resolve' && (snapshot.status !== 1 || snapshot.status_name !== 'PENDING' || snapshot.verdict !== 'PENDING'))
+        || (value.action === 'retry' && (snapshot.status !== 5 || snapshot.status_name !== 'UNRESOLVED' || snapshot.verdict !== 'UNRESOLVED'))) {
       throw new Error('Pending assessment payload is invalid.');
     }
     return value as unknown as PendingAssessmentTransaction;

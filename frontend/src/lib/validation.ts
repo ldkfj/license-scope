@@ -418,6 +418,7 @@ export function assertAssessmentUnchanged(before: AssessmentRecord, after: Asses
 }
 
 export function assertTerminalRecord(record: AssessmentRecord): void {
+  assertRetryCountInRange(record.retry_count);
   if (record.status < 2 || record.status > 5 || record.status_name === 'PENDING') {
     throw new Error('Assessment readback is not terminal.');
   }
@@ -460,6 +461,7 @@ export function assertTerminalRecord(record: AssessmentRecord): void {
 }
 
 export function assertPendingRecord(record: AssessmentRecord, expectedRetryCount?: number): void {
+  assertRetryCountInRange(record.retry_count);
   if (record.status !== 1 || record.status_name !== 'PENDING' || record.verdict !== 'PENDING' || record.reason_code !== '') {
     throw new Error('Assessment readback is not in valid PENDING state.');
   }
@@ -472,11 +474,14 @@ export function assertPendingRecord(record: AssessmentRecord, expectedRetryCount
   if (record.policy_version !== 'LS-V1' || record.policy_hash !== POLICY_HASH) {
     throw new Error('Assessment policy version or manifest hash mismatch.');
   }
-  if (record.retry_count < 0 || record.retry_count > 2) {
-    throw new Error(`Assessment retry_count ${record.retry_count} is out of valid bounds [0..2].`);
-  }
   if (expectedRetryCount !== undefined && record.retry_count !== expectedRetryCount) {
     throw new Error(`Assessment retry_count expected ${expectedRetryCount}, got ${record.retry_count}.`);
+  }
+}
+
+function assertRetryCountInRange(retryCount: number): void {
+  if (!Number.isSafeInteger(retryCount) || retryCount < 0 || retryCount > 2) {
+    throw new Error(`Assessment retry_count ${retryCount} is out of valid bounds [0..2].`);
   }
 }
 
@@ -512,6 +517,16 @@ interface DecodedCalldataInfo {
 
 function extractCalldataFromSource(source: unknown): DecodedCalldataInfo | null {
   if (!source) return null;
+  if (source instanceof Uint8Array || (Array.isArray(source) && source.every((value) => Number.isInteger(value) && value >= 0 && value <= 255))) {
+    try {
+      const decoded = abi.calldata.decode(source instanceof Uint8Array ? source : new Uint8Array(source));
+      if (decoded instanceof Map) {
+        const method = decoded.get('method');
+        const args = decoded.get('args');
+        if (typeof method === 'string' && Array.isArray(args)) return { method, args };
+      }
+    } catch {}
+  }
   if (source instanceof Map) {
     const method = source.get('method');
     const args = source.get('args');
@@ -523,7 +538,7 @@ function extractCalldataFromSource(source: unknown): DecodedCalldataInfo | null 
     const trimmed = source.trim();
     if (trimmed.startsWith('{') && trimmed.endsWith('}')) {
       try {
-        const parsed = JSON.parse(trimmed);
+        const parsed = JSON.parse(trimmed.replace(/,\s*]/g, ']').replace(/]\s*"method"/, '],"method"'));
         if (typeof parsed?.method === 'string' && Array.isArray(parsed?.args)) {
           return { method: parsed.method, args: parsed.args };
         }
@@ -572,28 +587,91 @@ function extractCalldataFromSource(source: unknown): DecodedCalldataInfo | null 
 
 function collectCalldataInfos(tx: Record<string, unknown>): DecodedCalldataInfo[] {
   const infos: DecodedCalldataInfo[] = [];
+  const add = (source: unknown, label: string) => {
+    if (typeof source === 'object' && source !== null && !Array.isArray(source) && !(source instanceof Map)) {
+      const rec = source as Record<string, unknown>;
+      if (rec.method !== undefined || rec.args !== undefined) {
+        const decoded = extractCalldataFromSource(rec);
+        if (!decoded) throw new Error(`${label} is present but malformed or unparseable.`);
+        infos.push(decoded);
+        return;
+      }
+      let found = false;
+      for (const key of ['raw', 'base64', 'readable']) {
+        if (rec[key] !== undefined && rec[key] !== null) {
+          add(rec[key], `${label}.${key}`);
+          found = true;
+        }
+      }
+      if (!found) throw new Error(`${label} is present but has no supported calldata representation.`);
+      return;
+    }
+    const decoded = extractCalldataFromSource(source);
+    if (!decoded) throw new Error(`${label} is present but malformed or unparseable.`);
+    infos.push(decoded);
+  };
   if (tx.data && typeof tx.data === 'object') {
     const dataRec = tx.data as Record<string, unknown>;
-    const cd = extractCalldataFromSource(dataRec.calldata ?? dataRec);
-    if (cd) infos.push(cd);
+    let found = false;
+    for (const key of ['calldata', 'raw', 'base64', 'readable']) {
+      if (dataRec[key] !== undefined && dataRec[key] !== null) {
+        add(dataRec[key], `Transaction data.${key}`);
+        found = true;
+      }
+    }
+    if (!found && (dataRec.method !== undefined || dataRec.args !== undefined)) {
+      add(dataRec, 'Transaction data');
+    }
   }
   if (tx.txDataDecoded && typeof tx.txDataDecoded === 'object') {
     const decodedRec = tx.txDataDecoded as Record<string, unknown>;
-    const cd = extractCalldataFromSource(decodedRec.callData ?? decodedRec);
-    if (cd) infos.push(cd);
+    let found = false;
+    for (const key of ['callData', 'calldata', 'raw', 'base64', 'readable']) {
+      if (decodedRec[key] !== undefined && decodedRec[key] !== null) {
+        add(decodedRec[key], `Transaction txDataDecoded.${key}`);
+        found = true;
+      }
+    }
+    if (!found && (decodedRec.method !== undefined || decodedRec.args !== undefined)) {
+      add(decodedRec, 'Transaction txDataDecoded');
+    }
   }
   if (tx.consensus_data && typeof tx.consensus_data === 'object') {
     const consensus = tx.consensus_data as Record<string, unknown>;
     if (Array.isArray(consensus.leader_receipt)) {
       for (const lr of consensus.leader_receipt) {
         if (lr && typeof lr === 'object') {
-          const cd = extractCalldataFromSource((lr as Record<string, unknown>).calldata);
-          if (cd) infos.push(cd);
+          const leader = lr as Record<string, unknown>;
+          if (leader.calldata !== undefined && leader.calldata !== null) {
+            add(leader.calldata, 'Leader receipt calldata');
+          }
         }
       }
     }
   }
   return infos;
+}
+
+function collectReturnedAssessmentIds(result: unknown, label: string): number[] {
+  if (result === undefined || result === null) return [];
+  if (typeof result === 'object' && !(result instanceof Uint8Array) && !Array.isArray(result)) {
+    const rec = result as Record<string, unknown>;
+    const ids: number[] = [];
+    let found = false;
+    for (const key of ['payload', 'readable', 'raw', 'data']) {
+      if (rec[key] !== undefined && rec[key] !== null) {
+        found = true;
+        const nested = collectReturnedAssessmentIds(rec[key], `${label}.${key}`);
+        if (nested.length === 0) throw new Error(`${label}.${key} is present but does not contain a valid assessment ID.`);
+        ids.push(...nested);
+      }
+    }
+    if (!found) throw new Error(`${label} is present but has no supported return representation.`);
+    return ids;
+  }
+  const id = extractReturnedAssessmentId(result);
+  if (id === null) throw new Error(`${label} is present but malformed or unparseable.`);
+  return [id];
 }
 
 export function extractReturnedAssessmentId(result: unknown): number | null {
@@ -769,22 +847,20 @@ export function validateTransactionBinding(
   }
 
   let returnedAssessmentId: number | null = null;
-  if (rec.consensus_data && typeof rec.consensus_data === 'object') {
+  if (pending.action === 'request' && rec.consensus_data && typeof rec.consensus_data === 'object') {
     const consensus = rec.consensus_data as Record<string, unknown>;
     if (Array.isArray(consensus.leader_receipt)) {
       const returnedIds: number[] = [];
       for (const lr of consensus.leader_receipt) {
         if (lr && typeof lr === 'object') {
-          const id = extractReturnedAssessmentId((lr as Record<string, unknown>).result);
-          if (id !== null) returnedIds.push(id);
+          returnedIds.push(...collectReturnedAssessmentIds((lr as Record<string, unknown>).result, 'Leader receipt result'));
         }
       }
-      if (returnedIds.length > 0) {
-        if (new Set(returnedIds).size !== 1) {
-          throw new Error('Leader receipt return values disagree.');
-        }
-        returnedAssessmentId = returnedIds[0];
+      if (returnedIds.length === 0) throw new Error('Request leader receipt returned no assessment ID.');
+      if (new Set(returnedIds).size !== 1) {
+        throw new Error('Leader receipt return values disagree.');
       }
+      returnedAssessmentId = returnedIds[0];
     }
   }
 
@@ -796,6 +872,7 @@ export function reconcileRequestRecord(
   record: AssessmentRecord,
   returnedAssessmentId?: number | null,
 ): { statusMessage: string; isProgressed: boolean } {
+  assertRetryCountInRange(record.retry_count);
   const { payload } = pending;
   if (record.canonical_key !== payload.canonicalKey) {
     throw new Error(`Readback canonical key mismatch: expected ${payload.canonicalKey}, got ${record.canonical_key}.`);
@@ -847,19 +924,44 @@ export function reconcileRequestRecord(
   throw new Error(`Assessment record status ${record.status} is unrecognized.`);
 }
 
+function assertPendingAssessmentIdentity(pending: PendingAssessmentTransaction, record: AssessmentRecord): void {
+  const { identity } = pending.payload;
+  const snapshot = pending.payload.snapshot;
+  assertSameAssessmentIdentity(snapshot, record);
+  if (snapshot.retry_count !== pending.payload.retryCount) {
+    throw new Error('Persisted pre-action retry count mismatch.');
+  }
+  if (pending.action === 'resolve') {
+    assertPendingRecord(snapshot, pending.payload.retryCount);
+  } else {
+    assertTerminalRecord(snapshot);
+    if (snapshot.status !== 5 || snapshot.status_name !== 'UNRESOLVED' || snapshot.verdict !== 'UNRESOLVED') {
+      throw new Error('Persisted retry pre-action state is not UNRESOLVED.');
+    }
+  }
+  if (record.assessment_id !== pending.payload.assessmentId || record.canonical_key !== pending.payload.canonicalKey) {
+    throw new Error('Assessment ID or canonical key mismatch.');
+  }
+  if (
+    record.artifact_kind !== identity.artifactKind
+    || record.namespace !== identity.namespace
+    || record.name !== identity.name
+    || record.revision !== identity.revision
+    || record.use_profile !== identity.useProfile
+    || record.requester.toLowerCase() !== identity.requester.toLowerCase()
+    || record.policy_version !== identity.policyVersion
+    || record.policy_hash !== identity.policyHash
+  ) {
+    throw new Error('Assessment immutable identity or policy binding mismatch.');
+  }
+  assertRetryCountInRange(record.retry_count);
+}
+
 export function reconcileResolveRecord(
   pending: PendingAssessmentTransaction,
   record: AssessmentRecord,
 ): { statusMessage: string; isProgressed: boolean } {
-  if (record.assessment_id !== pending.payload.assessmentId) {
-    throw new Error(`Assessment ID mismatch: expected #${pending.payload.assessmentId}, got #${record.assessment_id}.`);
-  }
-  if (record.canonical_key !== pending.payload.canonicalKey) {
-    throw new Error(`Canonical key mismatch: expected ${pending.payload.canonicalKey}, got ${record.canonical_key}.`);
-  }
-  if (record.policy_version !== 'LS-V1' || record.policy_hash !== POLICY_HASH) {
-    throw new Error('Assessment policy version or manifest hash mismatch.');
-  }
+  assertPendingAssessmentIdentity(pending, record);
 
   const expectedRound = pending.payload.retryCount;
   if (record.retry_count < expectedRound) {
@@ -899,15 +1001,7 @@ export function reconcileRetryRecord(
   pending: PendingAssessmentTransaction,
   record: AssessmentRecord,
 ): { statusMessage: string; isProgressed: boolean } {
-  if (record.assessment_id !== pending.payload.assessmentId) {
-    throw new Error(`Assessment ID mismatch: expected #${pending.payload.assessmentId}, got #${record.assessment_id}.`);
-  }
-  if (record.canonical_key !== pending.payload.canonicalKey) {
-    throw new Error(`Canonical key mismatch: expected ${pending.payload.canonicalKey}, got ${record.canonical_key}.`);
-  }
-  if (record.policy_version !== 'LS-V1' || record.policy_hash !== POLICY_HASH) {
-    throw new Error('Assessment policy version or manifest hash mismatch.');
-  }
+  assertPendingAssessmentIdentity(pending, record);
 
   const priorRound = pending.payload.retryCount;
   const minExpectedRound = priorRound + 1;
@@ -947,30 +1041,4 @@ export function reconcileRetryRecord(
     statusMessage: `Historical retry succeeded; assessment has since progressed to ${record.status_name} (retry ${record.retry_count}/2).`,
     isProgressed: true,
   };
-}
-
-export function assertTerminalFailureState(
-  pending: PendingAssessmentTransaction,
-  record: AssessmentRecord,
-): void {
-  if (record.assessment_id !== pending.payload.assessmentId) {
-    throw new Error(`Assessment ID mismatch: expected #${pending.payload.assessmentId}, got #${record.assessment_id}.`);
-  }
-  if (record.canonical_key !== pending.payload.canonicalKey) {
-    throw new Error(`Canonical key mismatch: expected ${pending.payload.canonicalKey}, got ${record.canonical_key}.`);
-  }
-
-  if (pending.action === 'resolve') {
-    if (record.status !== 1 || record.retry_count !== pending.payload.retryCount) {
-      throw new Error(`Resolve terminal failure verification failed: assessment is not in pre-transaction PENDING state at round ${pending.payload.retryCount}.`);
-    }
-    assertPendingRecord(record, pending.payload.retryCount);
-  } else if (pending.action === 'retry') {
-    if (record.status !== 5 || record.retry_count !== pending.payload.retryCount) {
-      throw new Error(`Retry terminal failure verification failed: assessment is not in pre-transaction UNRESOLVED state at round ${pending.payload.retryCount}.`);
-    }
-    if (record.reason_code.length === 0 || record.evidence_sufficient) {
-      throw new Error('UNRESOLVED pre-state invariants failed.');
-    }
-  }
 }
