@@ -592,6 +592,42 @@ test('Binding: one malformed present calldata representation rejects the whole r
   assert.throws(() => validateTransactionBinding(tx, pending), /Leader receipt calldata\.raw is present but malformed/i);
 });
 
+test('Binding: decoded calldata cannot hide a malformed additional raw representation', () => {
+  const pending = makePendingRequest();
+  const tx = makeTxData(
+    'request_assessment',
+    ['GITHUB_REPO', 'snap-research', 'CoSearch', '763bf8c4d7caa363ad845d39ddfd53b81ae377bd', 'COMMERCIAL_INFERENCE'],
+    REQUEST_HASH,
+    ACCOUNT,
+    CONTRACT,
+    2,
+  );
+  tx.data = {
+    method: 'request_assessment',
+    args: ['GITHUB_REPO', 'snap-research', 'CoSearch', '763bf8c4d7caa363ad845d39ddfd53b81ae377bd', 'COMMERCIAL_INFERENCE'],
+    raw: 'not-valid!',
+  } as unknown as typeof tx.data;
+  assert.throws(() => validateTransactionBinding(tx, pending), /Transaction data\.raw is present but malformed/i);
+});
+
+test('Binding: every request leader must return the assessment ID', () => {
+  const pending = makePendingRequest();
+  const tx = makeTxData(
+    'request_assessment',
+    ['GITHUB_REPO', 'snap-research', 'CoSearch', '763bf8c4d7caa363ad845d39ddfd53b81ae377bd', 'COMMERCIAL_INFERENCE'],
+    REQUEST_HASH,
+    ACCOUNT,
+    CONTRACT,
+    2,
+  );
+  tx.consensus_data.leader_receipt.push({
+    execution_result: 'SUCCESS',
+    result: null,
+    calldata: tx.consensus_data.leader_receipt[0].calldata,
+  });
+  assert.throws(() => validateTransactionBinding(tx, pending), /Every request leader receipt must return an assessment ID/i);
+});
+
 test('Binding: readable and raw returned IDs must agree', () => {
   const pending = makePendingRequest();
   const tx = makeTxData(

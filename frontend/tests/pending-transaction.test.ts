@@ -19,6 +19,12 @@ class MemoryStorage {
   removeItem(key: string) { this.values.delete(key); }
 }
 
+class SilentNoopStorage {
+  getItem() { return null; }
+  setItem() {}
+  removeItem() {}
+}
+
 function pending(): PendingTransaction {
   return {
     version: 1,
@@ -61,6 +67,11 @@ test('rejects malformed persisted data instead of silently unlocking writes', ()
     hash: 'not-a-hash',
   }));
   assert.throws(() => loadPendingTransaction(storage, CONTRACT), /malformed/i);
+});
+
+test('direct persistence fails closed when storage silently drops the hash', () => {
+  const storage = new SilentNoopStorage();
+  assert.throws(() => savePendingTransaction(storage, pending()), /persistence could not be verified/i);
 });
 
 test('rejects persisted assessment retry counts outside the shared 0..2 range', () => {

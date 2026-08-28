@@ -3,6 +3,7 @@ import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 
 import { TransactionCoordinator } from '../src/lib/transactionCoordinatorCore.ts';
+import { createResilientStorage } from '../src/lib/pendingTransaction.ts';
 import type {
   PendingAssessmentTransaction,
   PendingRequestTransaction,
@@ -19,6 +20,18 @@ class MemoryStorage implements StorageLike {
   getItem(key: string) { return this.values.get(key) ?? null; }
   setItem(key: string, value: string) { this.values.set(key, value); }
   removeItem(key: string) { this.values.delete(key); }
+}
+
+class ThrowingStorage implements StorageLike {
+  getItem(): string | null { throw new Error('storage unavailable'); }
+  setItem(): void { throw new Error('QuotaExceededError'); }
+  removeItem(): void { throw new Error('storage unavailable'); }
+}
+
+class SilentNoopStorage implements StorageLike {
+  getItem(): string | null { return null; }
+  setItem(): void {}
+  removeItem(): void {}
 }
 
 function requestPending(): PendingRequestTransaction {
@@ -90,6 +103,17 @@ function resolvePending(): PendingAssessmentTransaction {
       },
     },
   };
+}
+
+function retryPending(): PendingAssessmentTransaction {
+  const value = structuredClone(resolvePending());
+  value.action = 'retry';
+  value.payload.snapshot.status = 5;
+  value.payload.snapshot.status_name = 'UNRESOLVED';
+  value.payload.snapshot.verdict = 'UNRESOLVED';
+  value.payload.snapshot.reason_code = 'SOURCE_MISSING';
+  value.payload.snapshot.explanation = 'Source evidence was unavailable.';
+  return value;
 }
 
 test('page mounts Request and Registry write surfaces under one coordinator provider', () => {
@@ -194,4 +218,25 @@ test('saved and validated-cleared state synchronizes all subscribers and browser
   assert.ok(pageCoordinator.acquire('resolve', storage));
   unsubscribeRequest();
   unsubscribeRegistry();
+});
+
+test('throwing or silent primary storage falls back durably for Request, Resolve and Retry', () => {
+  const transactions = [requestPending(), resolvePending(), retryPending()];
+  for (const brokenPrimary of [new ThrowingStorage(), new SilentNoopStorage()]) {
+    for (const transaction of transactions) {
+      const fallback = new MemoryStorage();
+      const storage = createResilientStorage([brokenPrimary, fallback]);
+      assert.ok(storage);
+      const coordinator = new TransactionCoordinator(CONTRACT);
+      coordinator.syncFromStorage(storage);
+      const token = coordinator.acquire(transaction.action, storage);
+      assert.ok(token);
+      coordinator.promote(token, transaction, storage);
+
+      const afterReload = new TransactionCoordinator(CONTRACT);
+      afterReload.syncFromStorage(storage);
+      assert.equal(afterReload.getSnapshot().phase, 'pending');
+      assert.equal(afterReload.acquire('request', storage), null);
+    }
+  }
 });

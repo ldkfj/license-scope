@@ -594,7 +594,6 @@ function collectCalldataInfos(tx: Record<string, unknown>): DecodedCalldataInfo[
         const decoded = extractCalldataFromSource(rec);
         if (!decoded) throw new Error(`${label} is present but malformed or unparseable.`);
         infos.push(decoded);
-        return;
       }
       let found = false;
       for (const key of ['raw', 'base64', 'readable']) {
@@ -603,7 +602,9 @@ function collectCalldataInfos(tx: Record<string, unknown>): DecodedCalldataInfo[
           found = true;
         }
       }
-      if (!found) throw new Error(`${label} is present but has no supported calldata representation.`);
+      if (!found && rec.method === undefined && rec.args === undefined) {
+        throw new Error(`${label} is present but has no supported calldata representation.`);
+      }
       return;
     }
     const decoded = extractCalldataFromSource(source);
@@ -853,7 +854,9 @@ export function validateTransactionBinding(
       const returnedIds: number[] = [];
       for (const lr of consensus.leader_receipt) {
         if (lr && typeof lr === 'object') {
-          returnedIds.push(...collectReturnedAssessmentIds((lr as Record<string, unknown>).result, 'Leader receipt result'));
+          const leaderIds = collectReturnedAssessmentIds((lr as Record<string, unknown>).result, 'Leader receipt result');
+          if (leaderIds.length === 0) throw new Error('Every request leader receipt must return an assessment ID.');
+          returnedIds.push(...leaderIds);
         }
       }
       if (returnedIds.length === 0) throw new Error('Request leader receipt returned no assessment ID.');

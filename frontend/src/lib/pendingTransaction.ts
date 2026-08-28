@@ -163,7 +163,12 @@ export function parsePendingTransaction(value: unknown, expectedContract: string
 
 export function savePendingTransaction(storage: StorageLike, pending: PendingTransaction): void {
   const validated = parsePendingTransaction(pending, pending.contractAddress);
-  storage.setItem(pendingTransactionStorageKey(validated.contractAddress), JSON.stringify(validated));
+  const key = pendingTransactionStorageKey(validated.contractAddress);
+  const serialized = JSON.stringify(validated);
+  storage.setItem(key, serialized);
+  if (storage.getItem(key) !== serialized) {
+    throw new Error('Pending transaction persistence could not be verified; writes remain locked.');
+  }
 }
 
 export function loadPendingTransaction(storage: StorageLike, contractAddress: string): PendingTransaction | null {
@@ -181,12 +186,50 @@ export function loadPendingTransaction(storage: StorageLike, contractAddress: st
 export function clearPendingTransaction(storage: StorageLike, contractAddress: string, expectedHash: string): boolean {
   const pending = loadPendingTransaction(storage, contractAddress);
   if (!pending || pending.hash.toLowerCase() !== expectedHash.toLowerCase()) return false;
-  storage.removeItem(pendingTransactionStorageKey(contractAddress));
+  const key = pendingTransactionStorageKey(contractAddress);
+  storage.removeItem(key);
+  if (storage.getItem(key) !== null) return false;
   return true;
 }
 
+export function createResilientStorage(storages: StorageLike[]): StorageLike | null {
+  if (storages.length === 0) return null;
+  return {
+    getItem(key) {
+      const values: string[] = [];
+      for (const storage of storages) {
+        try {
+          const value = storage.getItem(key);
+          if (value !== null) values.push(value);
+        } catch {}
+      }
+      if (new Set(values).size > 1) throw new Error('Browser transaction storage copies disagree; writes are locked.');
+      return values[0] ?? null;
+    },
+    setItem(key, value) {
+      let verified = false;
+      for (const storage of storages) {
+        try {
+          storage.setItem(key, value);
+          if (storage.getItem(key) === value) verified = true;
+        } catch {}
+      }
+      if (!verified) throw new Error('Browser storage could not persist the broadcast hash; keep this page open and reconcile the displayed hash externally.');
+    },
+    removeItem(key) {
+      for (const storage of storages) {
+        try { storage.removeItem(key); } catch {}
+      }
+    },
+  };
+}
+
 export function browserStorage(): StorageLike | null {
-  return typeof window === 'undefined' ? null : window.localStorage;
+  if (typeof window === 'undefined') return null;
+  const storages: StorageLike[] = [];
+  try { storages.push(window.localStorage); } catch {}
+  try { storages.push(window.sessionStorage); } catch {}
+  return createResilientStorage(storages);
 }
 
 export function pendingTransactionTimestamp(): number {
