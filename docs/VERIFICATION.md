@@ -142,7 +142,7 @@ Post-upgrade live reads returned `get_rehearsal_version() == "LICENSE_SCOPE_REHE
   - *Coordinator*: Zero write calls on resume; single page-wide mutex preserved.
 - **Tests added**: Comprehensive regression suite in `frontend/tests/transaction-reconciliation.test.ts` covering all request progression branches, resolve progressions, retry progressions, transaction binding rejections (wrong hash, actor, contract, method, args, returned ID, malformed or contradictory representations), full persisted resolve/retry identity and policy binding, shared retry bounds, coordinator zero-write verification, RPC timeout lock retention, invalid advanced state lock retention, and simulated browser environment tests proving decoding and binding succeed when `Buffer` is undefined.
 - **No wallet/contract/dependency change**: Strict wallet freeze maintained — zero changes to wallet discovery, lists, connection, provider logic, account events, signing, chain switching, modal dialogs, or wallet tests. Contract source (`contracts/license_scope.py`), SHA-256 (`c3a51d4cb13f63433a3aaae4f3600deb4292e8cffad1a65d6261378b8984bbff`), dependencies, package.json, and lockfiles are unchanged.
-- **Live E2E status**: Live E2E remains pending until primary review, push/deploy, and rerun.
+- **Live E2E status**: Complete on public Vercel release `4498815f6899bd632f3ab09037077ea5d4fb342d`. With the original requester connected through OKX, the retained request hash reconciled without a new broadcast, reported assessment `#2` at its valid later `BLOCK / EXPLICIT_USE_RESTRICTION` state, cleared the write lock, remained cleared after reload, and exposed matching Registry Detail and Security Architecture readbacks with no browser-console errors.
 
 ## Offline command evidence
 
@@ -316,6 +316,6 @@ The retained lifecycle rows prove writes, finality, safe failure/no-mutation beh
 - V1 supports only public GitHub repositories at immutable commit SHAs.
 - LicenseScope is not legal advice.
 - Deployed-code readback and upgrade redispatch passed on the disposable rehearsal. Native Root locking was not independently isolated from the contract's earlier explicit authorization guard.
-- Anonymous PRE_DEPLOY approval covered exact correction revision `4ca3b93ce78ef3f432eba473ffab59527cc7e7d1` and source SHA-256 `c3a51d4cb13f63433a3aaae4f3600deb4292e8cffad1a65d6261378b8984bbff`. The public GitHub/Vercel surfaces still require a fresh exact-revision release after live correction proof and `POST_DEPLOY_TEST` review.
+- Anonymous PRE_DEPLOY approval covered exact correction revision `4ca3b93ce78ef3f432eba473ffab59527cc7e7d1` and source SHA-256 `c3a51d4cb13f63433a3aaae4f3600deb4292e8cffad1a65d6261378b8984bbff`. The public GitHub/Vercel reconciliation release is commit `4498815f6899bd632f3ab09037077ea5d4fb342d`; its exact release binding and live E2E received `EXPLORER_POST_RELEASE_LIVE` approval.
 
 The initial GitHub push and Vercel production release are complete. No multi-account completion or Task-completion claim is made by this document.
