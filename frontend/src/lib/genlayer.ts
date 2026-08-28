@@ -5,12 +5,18 @@ import type { ArtifactKind, AssessmentStatus, UseProfile } from './validation.ts
 
 export {
   assertAssessmentUnchanged,
+  assertPendingRecord,
   assertSameAssessmentIdentity,
+  assertTerminalFailureState,
   assertTerminalRecord,
   formatRegistryReadError,
   getGenLayerReceiptStatus,
   parseAssessmentRecord,
+  reconcileRequestRecord,
+  reconcileResolveRecord,
+  reconcileRetryRecord,
   validateGenLayerReceipt,
+  validateTransactionBinding,
 } from './validation.ts';
 export type {
   ArtifactKind,

@@ -11,9 +11,11 @@ import {
   CONTRACT_ADDRESS,
   connectWalletAndVerifyChain,
   getExplorerTxLink,
+  getGenLayerReceiptStatus,
   validateGenLayerReceipt,
   parseAssessmentRecord,
-  POLICY_HASH,
+  validateTransactionBinding,
+  reconcileRequestRecord,
 } from '@/lib/genlayer';
 import { waitForFinalizedTransaction } from '@/lib/finality';
 import {
@@ -58,20 +60,59 @@ export const RequestAssessmentForm: React.FC<RequestAssessmentFormProps> = ({
 
     setTxHash(pending.hash);
     setStatusMsg('Reconciling the existing transaction hash. No new transaction will be broadcast...');
-    const controller = new AbortController();
-    reconciliationController.current = controller;
-    try {
-      await waitForFinalizedTransaction(client, hash, ({ round, maxRounds }) => {
-        setStatusMsg(`Studionet is still processing this same hash (bounded reconciliation ${round}/${maxRounds})...`);
-      }, { signal: controller.signal });
-    } finally {
-      if (reconciliationController.current === controller) reconciliationController.current = null;
-    }
-    const receipt = await client.getTransaction({
+    let receipt = await client.getTransaction({
       hash: pending.hash as Parameters<typeof client.getTransaction>[0]['hash'],
     });
+    let receiptStatus = getGenLayerReceiptStatus(receipt);
+    const unsuccessfulTerminalStatuses = new Set(['UNDETERMINED', 'CANCELED', 'VALIDATORS_TIMEOUT', 'LEADER_TIMEOUT']);
+    if (unsuccessfulTerminalStatuses.has(receiptStatus)) {
+      validateTransactionBinding(receipt, pending);
+      const storage = browserStorage();
+      if (!storage || !coordinator.complete(pending.hash, storage)) {
+        throw new Error('Verified terminal failure could not be cleared from the shared coordinator.');
+      }
+      setErrorMsg(`Transaction ended ${receiptStatus}; contract state was not created by this transaction.`);
+      setStatusMsg(null);
+      return;
+    }
 
-    const { status: receiptStatus, executionResult, consensusResult } = validateGenLayerReceipt(receipt);
+    if (receiptStatus !== 'FINALIZED') {
+      const controller = new AbortController();
+      reconciliationController.current = controller;
+      try {
+        await waitForFinalizedTransaction(client, hash, ({ round, maxRounds }) => {
+          setStatusMsg(`Studionet is still processing this same hash (bounded reconciliation ${round}/${maxRounds})...`);
+        }, { signal: controller.signal });
+      } finally {
+        if (reconciliationController.current === controller) reconciliationController.current = null;
+      }
+      receipt = await client.getTransaction({
+        hash: pending.hash as Parameters<typeof client.getTransaction>[0]['hash'],
+      });
+      receiptStatus = getGenLayerReceiptStatus(receipt);
+    }
+
+    let executionResult: string;
+    let consensusResult: string;
+    try {
+      ({ executionResult, consensusResult } = validateGenLayerReceipt(receipt));
+    } catch (error: unknown) {
+      const failure = error instanceof Error ? error.message : String(error);
+      if (receiptStatus === 'FINALIZED' || unsuccessfulTerminalStatuses.has(receiptStatus)) {
+        validateTransactionBinding(receipt, pending);
+        const storage = browserStorage();
+        if (!storage || !coordinator.complete(pending.hash, storage)) {
+          throw new Error('Verified terminal failure could not be cleared from the shared coordinator.');
+        }
+        setErrorMsg(`Request transaction failed: ${failure}`);
+        setStatusMsg(null);
+        return;
+      }
+      throw error;
+    }
+
+    const { returnedAssessmentId } = validateTransactionBinding(receipt, pending);
+
     setStatusMsg(`Receipt ${receiptStatus}; consensus ${consensusResult}; execution ${executionResult}. Verifying exact contract record readback...`);
     const rawRecord = await client.readContract({
       address: CONTRACT_ADDRESS as `0x${string}`,
@@ -80,21 +121,13 @@ export const RequestAssessmentForm: React.FC<RequestAssessmentFormProps> = ({
     });
     const rec = parseAssessmentRecord(rawRecord);
 
-    if (rec.canonical_key !== payload.canonicalKey) throw new Error(`Readback canonical key mismatch: expected ${payload.canonicalKey}, got ${rec.canonical_key}.`);
-    if (rec.artifact_kind !== payload.artifactKind || rec.use_profile !== payload.useProfile) throw new Error('Readback artifact kind or use profile mismatch.');
-    if (rec.namespace.toLowerCase() !== payload.namespace.toLowerCase() || rec.name.toLowerCase() !== payload.name.toLowerCase()) throw new Error('Readback namespace or repository name mismatch.');
-    if (rec.revision.toLowerCase() !== payload.revision) throw new Error('Readback commit SHA revision mismatch.');
-    if (rec.requester.toLowerCase() !== pending.account.toLowerCase()) throw new Error(`Readback requester address mismatch: expected ${pending.account}, got ${rec.requester}.`);
-    if (rec.status !== 1 || rec.status_name !== 'PENDING' || rec.verdict !== 'PENDING' || rec.reason_code !== '') throw new Error('Readback status or reason code mismatch for initial PENDING state.');
-    if (rec.subject_match !== 'UNCLEAR' || rec.revision_match !== 'UNCLEAR' || rec.evidence_sufficient !== false) throw new Error('Readback tri-state or evidence sufficiency mismatch for initial PENDING state.');
-    if (rec.license_ids.length !== 0 || rec.obligations.length !== 0 || rec.evidence_references.length !== 0) throw new Error('Readback license, obligation, or evidence references not empty for PENDING state.');
-    if (rec.policy_version !== 'LS-V1' || rec.policy_hash !== POLICY_HASH) throw new Error('Readback policy version or manifest hash mismatch.');
+    const { statusMessage } = reconcileRequestRecord(pending, rec, returnedAssessmentId);
 
     const storage = browserStorage();
     if (!storage || !coordinator.complete(pending.hash, storage)) {
       throw new Error('Validated transaction could not be cleared from the shared coordinator.');
     }
-    setStatusMsg('Attestation request successfully registered and verified on Studionet!');
+    setStatusMsg(statusMessage);
     await onTransactionSuccess();
     setNamespace('');
     setName('');

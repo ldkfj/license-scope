@@ -7,14 +7,15 @@ import {
   isContractConfigured,
   getClient,
   CONTRACT_ADDRESS,
-  assertAssessmentUnchanged,
   connectWalletAndVerifyChain,
   getExplorerTxLink,
   getGenLayerReceiptStatus,
   validateGenLayerReceipt,
   parseAssessmentRecord,
-  assertSameAssessmentIdentity,
-  assertTerminalRecord,
+  validateTransactionBinding,
+  reconcileResolveRecord,
+  reconcileRetryRecord,
+  assertTerminalFailureState,
   MatchTriState,
 } from '@/lib/genlayer';
 import { waitForFinalizedTransaction } from '@/lib/finality';
@@ -54,18 +55,19 @@ export const AssessmentList: React.FC<AssessmentListProps> = ({
 
   const clearVerifiedTerminalFailure = async (
     pending: PendingAssessmentTransaction,
-    record: AssessmentRecord,
+    receipt: unknown,
     client: ReturnType<typeof getClient>,
     receiptStatus: string,
     failure: string,
   ) => {
+    validateTransactionBinding(receipt, pending);
     const rawReadback = await client.readContract({
       address: CONTRACT_ADDRESS as `0x${string}`,
       functionName: 'get_assessment',
-      args: [BigInt(record.assessment_id)],
+      args: [BigInt(pending.payload.assessmentId)],
     });
     const rec = parseAssessmentRecord(rawReadback);
-    assertAssessmentUnchanged(record, rec);
+    assertTerminalFailureState(pending, rec);
 
     const storage = browserStorage();
     if (!storage || !coordinator.complete(pending.hash, storage)) {
@@ -86,14 +88,14 @@ export const AssessmentList: React.FC<AssessmentListProps> = ({
     }
     const client = getClient(accountAddr);
     setActiveTxHash(pending.hash);
-    setStatusMsg(`Reconciling existing ${pending.action} hash for #${record.assessment_id}. No new transaction will be broadcast...`);
+    setStatusMsg(`Reconciling existing ${pending.action} hash for #${pending.payload.assessmentId}. No new transaction will be broadcast...`);
     let receipt = await client.getTransaction({
       hash: pending.hash as Parameters<typeof client.getTransaction>[0]['hash'],
     });
     let receiptStatus = getGenLayerReceiptStatus(receipt);
     const unsuccessfulTerminalStatuses = new Set(['UNDETERMINED', 'CANCELED', 'VALIDATORS_TIMEOUT', 'LEADER_TIMEOUT']);
     if (unsuccessfulTerminalStatuses.has(receiptStatus)) {
-      await clearVerifiedTerminalFailure(pending, record, client, receiptStatus, `Transaction ended ${receiptStatus}; contract state was unchanged.`);
+      await clearVerifiedTerminalFailure(pending, receipt, client, receiptStatus, `Transaction ended ${receiptStatus}; contract state was unchanged.`);
       return;
     }
 
@@ -123,31 +125,28 @@ export const AssessmentList: React.FC<AssessmentListProps> = ({
     } catch (error: unknown) {
       const failure = error instanceof Error ? error.message : String(error);
       if (receiptStatus === 'FINALIZED' || unsuccessfulTerminalStatuses.has(receiptStatus)) {
-        await clearVerifiedTerminalFailure(pending, record, client, receiptStatus, failure);
+        await clearVerifiedTerminalFailure(pending, receipt, client, receiptStatus, failure);
         return;
       }
       throw error;
     }
+
+    validateTransactionBinding(receipt, pending);
+
     setStatusMsg(`Receipt ${receiptStatus}; consensus ${consensusResult}; execution ${executionResult}. Verifying contract readback...`);
     const rawReadback = await client.readContract({
       address: CONTRACT_ADDRESS as `0x${string}`,
       functionName: 'get_assessment',
-      args: [BigInt(record.assessment_id)],
+      args: [BigInt(pending.payload.assessmentId)],
     });
     const rec = parseAssessmentRecord(rawReadback);
-    assertSameAssessmentIdentity(record, rec);
 
     if (pending.action === 'resolve') {
-      if (rec.retry_count !== pending.payload.retryCount) throw new Error(`Resolve unexpectedly changed retry_count from ${pending.payload.retryCount} to ${rec.retry_count}.`);
-      assertTerminalRecord(rec);
-      setStatusMsg(`Resolution finalized! Verdict: ${rec.status_name} (${rec.reason_code})`);
+      const { statusMessage } = reconcileResolveRecord(pending, rec);
+      setStatusMsg(statusMessage);
     } else {
-      if (rec.status !== 1 || rec.status_name !== 'PENDING' || rec.verdict !== 'PENDING' || rec.reason_code !== '') throw new Error('Retry atomic reset failed: status expected PENDING (1) with empty reason code.');
-      if (rec.subject_match !== 'UNCLEAR' || rec.revision_match !== 'UNCLEAR' || rec.evidence_sufficient !== false) throw new Error('Retry atomic reset failed: match or evidence fields retained terminal values.');
-      if (rec.license_ids.length !== 0 || rec.obligations.length !== 0 || rec.evidence_references.length !== 0) throw new Error('Retry atomic reset failed: license, obligation, or evidence arrays retained terminal values.');
-      if (rec.retry_count !== pending.payload.retryCount + 1) throw new Error(`Retry count verification failed: expected ${pending.payload.retryCount + 1}, got ${rec.retry_count}.`);
-      if (rec.explanation !== 'Assessment retry queued, awaiting leader-validator consensus resolution.') throw new Error('Retry readback explanation did not match the contract PENDING reset message.');
-      setStatusMsg('Retry finalized! Assessment reset to PENDING.');
+      const { statusMessage } = reconcileRetryRecord(pending, rec);
+      setStatusMsg(statusMessage);
     }
 
     const storage = browserStorage();

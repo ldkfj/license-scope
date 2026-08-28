@@ -202,6 +202,14 @@ The authorized rehearsal used separate disposable Studionet contract `0xF1FF7a9F
 
 All six transactions above reached `FINALIZED` with `MAJORITY_AGREE`. V1 deployment `0xda26ea0dc925a6b7c740ae2c503b5b6a869ad285ad2840a095e624b79225273a` recorded four `AGREE` votes and one quorum-cancelled `IDLE`; each of the remaining five transactions recorded five `AGREE` votes. Expected rejection transactions finalized with consensus but had leader execution `ERROR` and rollback, so they are failure/no-mutation evidence rather than successful writes. The rehearsal proves the explicit Root-upgrader membership guard and persistence of the Root upgrader list across code replacement. It does not independently bypass that guard to isolate native locked-slot enforcement.
 
+## Explorer post-release live transaction reconciliation remediation
+
+- **Defect summary**: Resuming historical finalized request transaction `0x34a4aac8b2b878ab9a442ffd76b70712a3b5e973954a3876deb289f292850809` (which registered assessment `#2`) was rejected with `"Readback status or reason code mismatch for initial PENDING state."` after assessment `#2` legitimately progressed to `BLOCK / EXPLICIT_USE_RESTRICTION`, locking the write coordinator.
+- **Root cause**: Readback validation assumed that the current on-chain state must remain in its initial `PENDING` state, failing to distinguish what the historical transaction accomplished from subsequent valid state progression.
+- **Remediation**: Shared validation functions (`validateTransactionBinding`, `reconcileRequestRecord`, `reconcileResolveRecord`, `reconcileRetryRecord`, `assertTerminalFailureState`) using browser-native base64 decoding bind the transaction envelope to the fetched receipt and validate state-machine progression. Failed requests rely on exact binding plus GenLayer's atomic failure/rollback result; failed Resolve/Retry transactions additionally require readback matching their persisted pre-transaction round/state invariants.
+- **Invariants**: Fail-closed validation; zero write calls on resume; exact same-hash coordinator persistence; strict wallet freeze (zero wallet code/behavior changes); contract source/hash unchanged; zero `Buffer` dependency in client code.
+- **Verification**: 86 unit and regression tests pass in `frontend/tests/`. Live E2E remains pending until primary review, push/deploy, and rerun.
+
 ## Recovery runbook
 
 ### Studio/local UI data reset while chain state remains

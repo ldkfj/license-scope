@@ -130,6 +130,20 @@ Post-upgrade live reads returned `get_rehearsal_version() == "LICENSE_SCOPE_REHE
 - Traceback terminated at `_parse_address` because Studio supplied the constructor address as an integer and `Address(int)` overflowed.
 - Commit `6e9952d0402b9bac6a56806f90717d43c734428f` converts valid unsigned 160-bit integers to exactly 20 big-endian bytes and adds Studio-shaped regression coverage.
 
+## Explorer post-release live transaction reconciliation remediation
+
+- **Confirmed live defect**: When resuming historical finalized request transaction `0x34a4aac8b2b878ab9a442ffd76b70712a3b5e973954a3876deb289f292850809` (which registered assessment `#2`), the frontend rejected the readback with `"Readback status or reason code mismatch for initial PENDING state."` because assessment `#2` had legitimately progressed to `BLOCK / EXPLICIT_USE_RESTRICTION`. This retained the pending transaction in `localStorage` and permanently locked writes in the page transaction coordinator.
+- **Root cause**: The client-side reconciliation logic required the on-chain readback to remain in its initial `PENDING` state (status 1, empty reason code, empty arrays), failing to distinguish what the historical transaction accomplished from what the immutable assessment record looks like now.
+- **Corrected model**: Shared pure validation functions (`validateTransactionBinding`, `reconcileRequestRecord`, `reconcileResolveRecord`, `reconcileRetryRecord`, `assertTerminalFailureState`) using browser-native base64 decoding (`atob` + `Uint8Array`, zero `Buffer` dependency) bind the transaction envelope (exact hash, sender account, contract recipient, method name, payload arguments, returned assessment ID) and validate legitimate on-chain state machine progression:
+  - *Request*: Accepts original valid `PENDING` state or subsequent valid progression to `ALLOW`, `CONDITIONAL`, `BLOCK`, `UNRESOLVED`, and valid retry rounds. UI truthfully distinguishes registered pending from historical progressed states.
+  - *Resolve*: Binds exact resolve transaction identity, accepting direct terminal results at the expected retry round or later valid retried/resolved states while rejecting retry regressions and malformed data.
+  - *Retry*: Binds exact retry transaction identity, accepting direct `PENDING` reset at `n+1` or later valid resolutions/retries up to `MAX_RETRIES = 2`.
+  - *Terminal Failure*: Authoritatively failed request transactions clear the mutex only after exact transaction binding and GenLayer's atomic failure/rollback result; failed or duplicate requests are never reported as successful. Resolve and Retry failures additionally require authoritative readback matching their persisted pre-transaction round/state invariants.
+  - *Coordinator*: Zero write calls on resume; single page-wide mutex preserved.
+- **Tests added**: Comprehensive regression suite in `frontend/tests/transaction-reconciliation.test.ts` covering all request progression branches, resolve progressions, retry progressions, transaction binding rejections (wrong hash, actor, contract, method, args, returned ID, contradictory receipts), coordinator zero-write verification, RPC timeout lock retention, invalid advanced state lock retention, and simulated browser environment tests proving decoding and binding succeed when `Buffer` is undefined.
+- **No wallet/contract/dependency change**: Strict wallet freeze maintained — zero changes to wallet discovery, lists, connection, provider logic, account events, signing, chain switching, modal dialogs, or wallet tests. Contract source (`contracts/license_scope.py`), SHA-256 (`c3a51d4cb13f63433a3aaae4f3600deb4292e8cffad1a65d6261378b8984bbff`), dependencies, package.json, and lockfiles are unchanged.
+- **Live E2E status**: Live E2E remains pending until primary review, push/deploy, and rerun.
+
 ## Offline command evidence
 
 All Python commands were run from the project root with external `PYTHONPATH` unset and project-local Python 3.13. The same Python gates were also reproduced from a clean Git-tree archive with a newly created `.venv` and no importable `genlayer` package before the repository test bootstrap ran.
